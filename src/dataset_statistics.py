@@ -14,8 +14,7 @@ def main():
         authors = db.get_authors(ln)
         print ln, len(authors)
         print "authors", authors[:10], "..."
-        print db.get_author(authors[0])
-        print
+        db.get_author(authors[0])
 
     print "Bye!"
 

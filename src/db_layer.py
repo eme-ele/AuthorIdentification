@@ -80,6 +80,7 @@ class db_layer:
     def get_author(self, id_, reduced=False):
         author = {}
         filename = self.get_author_descriptor_file(id_)
+        author_path = self.get_author_path(id_)
 
         if not os.path.isfile(filename):
             author = self.initialize_author(id_)
@@ -87,5 +88,27 @@ class db_layer:
             f = open(filename)
             author = json.load(f)
             f.close()
+
+        if not reduced:
+            corpus = []
+            author["documents"].sort()
+
+            print id_
+            for d in author["documents"]:
+                f = open(os.path.join(author_path, d))
+                corpus.append(f.read().decode("utf-8"))
+                f.close()
+
+            author["corpus"] = corpus
+        else:
+            author["corpus"] = []
+
+        return author
+
+    def set_feature(self, author, ft_name, ft_value, commit=True):
+        author["features"][ft_name] = ft_value
+
+        if commit:
+            self.update_article(author)
 
         return author
