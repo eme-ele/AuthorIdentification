@@ -61,6 +61,8 @@ class db_layer:
     def update_author(self, author):
         id_ = author["id"]
         path = self.get_author_path(id_)
+        tmp_corpus = author["corpus"]
+        author["corpus"] = None
 
         # Create directory
         if not os.path.exists(os.path.dirname(path)):
@@ -76,6 +78,8 @@ class db_layer:
         except:
             os.remove(self.get_author_descriptor_file(id_))
             os.rename(tempname, self.get_author_descriptor_file(id_))
+
+        author["corpus"] = tmp_corpus
 
     def get_author(self, id_, reduced=False):
         author = {}
