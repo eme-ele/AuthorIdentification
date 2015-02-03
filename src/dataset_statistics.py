@@ -4,10 +4,17 @@
 import utils
 from db_layer import db_layer
 import numpy as np
-
+import argparse
 
 def main():
-    db = db_layer("conf/config.json")
+    parser = argparse.ArgumentParser(\
+        description="Compute the dataset statistics.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--config', metavar="conf", nargs='?',
+                        default="conf/config.json", help='Configuration file')
+    args = parser.parse_args()
+
+    db = db_layer(args.config)
     languages = db.get_languages()
     authors = db.get_authors()
     print "total", len(authors)

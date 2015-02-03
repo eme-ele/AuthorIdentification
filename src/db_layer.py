@@ -116,3 +116,7 @@ class db_layer:
             self.update_article(author)
 
         return author
+
+    def clear_features(self, author, commit=True):
+        author["features"] = {}
+        return author
