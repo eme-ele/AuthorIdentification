@@ -52,6 +52,7 @@ class db_layer:
         author = \
             {"id": id_,
              "documents": self.get_author_documents(id_),
+             "corpus": [],
              "features": {},
             }
 
@@ -97,7 +98,6 @@ class db_layer:
             corpus = []
             author["documents"].sort()
 
-            print id_
             for d in author["documents"]:
                 f = open(os.path.join(author_path, d))
                 corpus.append(f.read().decode("utf-8"))
