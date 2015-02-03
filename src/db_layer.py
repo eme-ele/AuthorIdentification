@@ -10,6 +10,7 @@ import tempfile
 
 import utils
 
+
 class db_layer:
     def __init__(self, config_filename):
         self.config_filename = config_filename
@@ -35,7 +36,7 @@ class db_layer:
 
     def get_author_path(self, id_):
         return os.path.join(self.path, self.get_author_language(id_), id_)
-    
+
     def get_author_descriptor_file(self, id_):
         return os.path.join(self.get_author_path(id_), "author.json")
 
@@ -60,7 +61,7 @@ class db_layer:
     def update_author(self, author):
         id_ = author["id"]
         path = self.get_author_path(id_)
-        
+
         # Create directory
         if not os.path.exists(os.path.dirname(path)):
             os.makedirs(os.path.dirname(path))

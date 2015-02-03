@@ -6,6 +6,7 @@ import json
 import math
 import os
 
+
 def get_configuration(filename):
     try:
         f = open(filename)

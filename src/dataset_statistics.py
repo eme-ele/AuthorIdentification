@@ -4,6 +4,7 @@
 import utils
 from db_layer import db_layer
 
+
 def main():
     db = db_layer("conf/config.json")
     languages = db.get_languages()
