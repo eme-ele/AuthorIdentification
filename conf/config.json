@@ -1,3 +1,14 @@
 {
-    "dataset": "dataset"
+    "dataset": "dataset",
+    "languages":
+    {
+        "DU": "dutch",
+        "EN": "english",
+        "GR": "german",
+        "SP": "spanish"
+    },
+    "features":
+    [
+        
+    ]
 }

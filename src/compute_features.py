@@ -35,6 +35,8 @@ db = db_layer(args.config)
 
 fe = concat_fe(args.config,
                [
+                   num_tokens_fe(args.config),
+                   stop_words_fe(args.config)
                ])
 
 if type(args.language) == str:
@@ -53,9 +55,9 @@ for ln in args.language:
         print "Computing features..."
         for id_author, author in enumerate(authors):
             author = fe.compute(author)["features"]
-
             if id_author % 10 == 0:
                 print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
+            break
         print
     print

@@ -109,7 +109,7 @@ class db_layer:
 
         return author
 
-    def set_feature(self, author, ft_name, ft_value, commit=True):
+    def set_feature(self, author, ft_name, ft_value, commit=False):
         author["features"][ft_name] = ft_value
 
         if commit:
@@ -117,6 +117,6 @@ class db_layer:
 
         return author
 
-    def clear_features(self, author, commit=True):
+    def clear_features(self, author, commit=False):
         author["features"] = {}
         return author

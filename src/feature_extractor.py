@@ -1,9 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from nltk.tokenize import RegexpTokenizer
 from datetime import datetime
 import numpy as np
-
+import stop_words
 import json
 import os
 import tempfile
@@ -54,3 +55,34 @@ class concat_fe(feature_extractor):
 class clear_fe(feature_extractor):
     def compute_features(self, article):
         return self.db.clear_features(author, commit=False)
+
+class num_tokens_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        super(num_tokens_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+
+    def compute_features(self, author):
+        tokens = [self.tokenizer.tokenize(d) for d in author["corpus"]]
+        unique_tokens = [list(set(t)) for t in tokens]
+        
+        ntokens = [len(t) for t in tokens]
+        author = self.db.set_feature(author, "avg_n_tokens", np.mean(ntokens))
+        author = self.db.set_feature(author, "min_n_tokens", np.min(ntokens))
+        author = self.db.set_feature(author, "max_n_tokens", np.max(ntokens))
+
+        n_unique_tokens = [float(len(u)) / t \
+                            for u, t in zip(unique_tokens, ntokens)]
+        author = self.db.set_feature(author, "avg_rate_unique_tokens",
+                                     np.mean(n_unique_tokens))
+        author = self.db.set_feature(author, "min_rate_unique_tokens",
+                                     np.min(n_unique_tokens))
+        author = self.db.set_feature(author, "max_rate_unique_tokens",
+                                     np.max(n_unique_tokens))
+
+        return author
+
+class stop_words_fe(feature_extractor):
+    def compute_features(self, author):
+        language = self.db.get_author_language(author["id"])
+        print stop_words.get_stop_words(self.config["languages"][language])
+        return author
