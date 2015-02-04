@@ -35,6 +35,7 @@ db = db_layer(args.config)
 
 fe = concat_fe(args.config,
                [
+                   clear_fe(args.config),
                    num_tokens_fe(args.config),
                    stop_words_fe(args.config)
                ])
@@ -54,10 +55,16 @@ for ln in args.language:
     if args.compute[0]:
         print "Computing features..."
         for id_author, author in enumerate(authors):
-            author = fe.compute(author)["features"]
+            author = fe.compute(author)
             if id_author % 10 == 0:
                 print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
+            
+            ft = author["features"].items()
+            ft.sort()
+            for f, v in ft:
+                print "%30s %10.2f" % (f, v)
+
             break
         print
     print

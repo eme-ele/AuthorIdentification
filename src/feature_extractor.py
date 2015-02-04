@@ -53,7 +53,7 @@ class concat_fe(feature_extractor):
 
 
 class clear_fe(feature_extractor):
-    def compute_features(self, article):
+    def compute_features(self, author):
         return self.db.clear_features(author, commit=False)
 
 class num_tokens_fe(feature_extractor):
@@ -62,27 +62,70 @@ class num_tokens_fe(feature_extractor):
         self.tokenizer = RegexpTokenizer(r'\w+')
 
     def compute_features(self, author):
-        tokens = [self.tokenizer.tokenize(d) for d in author["corpus"]]
-        unique_tokens = [list(set(t)) for t in tokens]
+        documents = [self.tokenizer.tokenize(d) for d in author["corpus"]]
+        unique_tokens = [list(set(t)) for t in documents]
         
-        ntokens = [len(t) for t in tokens]
-        author = self.db.set_feature(author, "avg_n_tokens", np.mean(ntokens))
-        author = self.db.set_feature(author, "min_n_tokens", np.min(ntokens))
-        author = self.db.set_feature(author, "max_n_tokens", np.max(ntokens))
+        # Number of tokens per document
+        ntokens = map(len, documents)
+        author = self.db.set_feature(author, "tokens_avg", np.mean(ntokens))
+        author = self.db.set_feature(author, "tokens_min", np.min(ntokens))
+        author = self.db.set_feature(author, "tokens_max", np.max(ntokens))
 
+        # Number of unique tokens per document (binary occurence)
         n_unique_tokens = [float(len(u)) / t \
                             for u, t in zip(unique_tokens, ntokens)]
-        author = self.db.set_feature(author, "avg_rate_unique_tokens",
+        author = self.db.set_feature(author, "unique_tokens_avg",
                                      np.mean(n_unique_tokens))
-        author = self.db.set_feature(author, "min_rate_unique_tokens",
+        author = self.db.set_feature(author, "unique_tokens_min",
                                      np.min(n_unique_tokens))
-        author = self.db.set_feature(author, "max_rate_unique_tokens",
+        author = self.db.set_feature(author, "unique_tokens_max",
                                      np.max(n_unique_tokens))
 
         return author
 
 class stop_words_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
+            
+        super(stop_words_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                            for ln in self.db.get_languages()}
+
     def compute_features(self, author):
-        language = self.db.get_author_language(author["id"])
-        print stop_words.get_stop_words(self.config["languages"][language])
+        lang = self.db.get_author_language(author["id"])
+        stopwords = self.stopwords[lang]
+        documents = [self.tokenizer.tokenize(d) for d in author["corpus"]]
+        
+        # Occurrences of the stop-words in the text
+        ntokens = map(len, documents)
+        stop_tokens = [[x for x in d if x in stopwords] for d in documents]
+        n_sw = [float(len(sw)) / t for sw, t in zip(stop_tokens, ntokens)]
+        author = self.db.set_feature(author, "stop_words_avg",
+                                     np.mean(n_sw))
+        author = self.db.set_feature(author, "stop_words_min",
+                                     np.min(n_sw))
+        author = self.db.set_feature(author, "stop_words_max",
+                                     np.max(n_sw))
+
+        # Binary (unique) occurrences of the stop-words in the text
+        unique_tks = [list(set(x)) for x in documents]
+        n_unique_tokens = map(len, unique_tks)
+        sw_unique = [[x for x in d if x in stopwords] for d in unique_tks]
+        n_sw_unique = [float(len(sw)) / t for sw, t in zip(sw_unique,
+                                                           n_unique_tokens)]
+        author = self.db.set_feature(author, "unique_stop_words_avg",
+                                     np.mean(n_sw_unique))
+        author = self.db.set_feature(author, "unique_stop_words_min",
+                                     np.min(n_sw_unique))
+        author = self.db.set_feature(author, "unique_stop_words_max",
+                                     np.max(n_sw_unique))
+        
+        #TODO: include a BoW encoding the occurrences of each stop-word
+
         return author
