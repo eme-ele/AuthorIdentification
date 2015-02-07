@@ -129,3 +129,45 @@ class stop_words_fe(feature_extractor):
         #TODO: include a BoW encoding the occurrences of each stop-word
 
         return author
+
+class punctuation_fe(feature_extractor):
+    def compute_features(self, author):
+        def avg_min_max_char(documents, char):
+            l = [len(filter(lambda x: x == char, d)) for d in documents]
+            if len(l) == 0:
+                l = [0]
+
+            return np.mean(l), np.min(l), np.max(l)
+
+        def set_avg_min_max(author, punctuation, name, char):
+            avg_char, min_char, max_char = avg_min_max_char(punctuation, char)
+            author = self.db.set_feature(author, "puntuation_" + name + "_avg",
+                                         avg_char)
+            author = self.db.set_feature(author, "puntuation_" + name + "_min",
+                                         min_char)
+            author = self.db.set_feature(author, "puntuation_" + name + "_max",
+                                         max_char)
+            return author
+
+        documents = author["corpus"]
+        punctuation = [filter(lambda x: not x.isalnum() and not x.isspace(),
+                              d) for d in documents]
+
+        len_punctuation = [len(x) for x in punctuation]
+
+        author = self.db.set_feature(author, "puntuation_avg",
+                                     np.mean(len_punctuation))
+        author = self.db.set_feature(author, "puntuation_min",
+                                     np.min(len_punctuation))
+        author = self.db.set_feature(author, "puntuation_max",
+                                     np.max(len_punctuation))
+        
+        author = set_avg_min_max(author, punctuation, "points", '.')
+        author = set_avg_min_max(author, punctuation, "commas", ',')
+        author = set_avg_min_max(author, punctuation, "semi_colon", ';')
+        author = set_avg_min_max(author, punctuation, "question", '?')
+        author = set_avg_min_max(author, punctuation, "exclamation", '!')
+        author = set_avg_min_max(author, punctuation, "double_quote", '"')
+        author = set_avg_min_max(author, punctuation, "single_quote", '\'')
+
+        return author
