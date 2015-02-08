@@ -61,12 +61,9 @@ for ln in args.language:
             if id_author % 10 == 0:
                 print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
-
-            ft = author["features"].items()
-            ft.sort()
-            for f, v in ft:
-                print "%30s %10.2f" % (f, v)
-
-            break
+            #ft = author["features"].items()
+            #ft.sort()
+            #for f, v in ft:
+                #print "%30s %10.2f" % (f, v)
         print
     print
