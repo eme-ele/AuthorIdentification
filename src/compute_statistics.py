@@ -70,7 +70,7 @@ def feature_curves(args, config):
     for ln_id, ln in enumerate(args.language):
         if ln_id > 0:
             f.write(" & ")
-        f.write("\\textbf{%s}" % ln)
+        f.write("\multicolumn{2}{|c|}{\\textbf{%s}}" % ln)
     f.write("\\\\\n")
     f.write("\\hline\n")
 
