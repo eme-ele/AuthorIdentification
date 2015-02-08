@@ -20,10 +20,12 @@ def global_statistics(args, config):
     for ln in args.language:
         authors = db.get_authors(ln)
         num_documents = [len(db.get_author(a)["corpus"]) for a in authors]
-        f.write("\\textbf{%2s} & %3d & %4.2f & %4.2f & %d & %d\\\\\n" %\
+        f.write("\\textbf{%2s} & %3d & %4.2f & %4.2f & %d & %d & %4d\\\\\n" %\
                     (ln, len(authors),\
                      np.mean(num_documents), np.std(num_documents),\
-                     np.min(num_documents), np.max(num_documents))
+                     np.min(num_documents), np.max(num_documents),
+                     len(db.get_author(authors[0])["features"])
+                    )
                )
 
 
@@ -59,7 +61,7 @@ def feature_curves(args, config):
         max_num_features = max(max_num_features, len(areas))
 
     features_names = list(set(features_names))
-    max_ft = str(max(map(len, features_names)))
+    max_ft = max(map(len, features_names))
 
     args.language.sort()
 
@@ -79,9 +81,12 @@ def feature_curves(args, config):
             if f_id < len(auc_per_language[ln]):
                 if ln_id > 0:
                     f.write(" &"),
-                f.write(("%0.4f & %" + max_ft + "s") % \
-                            (auc_per_language[ln][f_id][0],
-                             auc_per_language[ln][f_id][1]))
+                f.write(u"%0.4f & " % auc_per_language[ln][f_id][0])
+                ft = unicode(auc_per_language[ln][f_id][1])
+                while len(ft) < max_ft:
+                    ft = u' ' + ft
+                f.write(ft.encode('utf8'))
+
             else:
                 if ln_id > 0:
                     f.write(" &")

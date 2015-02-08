@@ -42,7 +42,8 @@ fe = concat_fe(args.config,
                    num_tokens_fe(args.config),
                    stop_words_fe(args.config),
                    punctuation_fe(args.config),
-                   structure_fe(args.config)
+                   structure_fe(args.config),
+                   char_distribution_fe(args.config)
                ])
 
 if type(args.language) == str:
@@ -63,8 +64,8 @@ for ln in args.language:
                 os.sys.stdout.flush()
 
     if args.train[0]:
+        print "Training features..."
         fe.train(authors)
-        print "Training done..."
 
     if args.compute[0]:
         print "Computing features..."
