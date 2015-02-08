@@ -38,7 +38,8 @@ fe = concat_fe(args.config,
                    clear_fe(args.config),
                    num_tokens_fe(args.config),
                    stop_words_fe(args.config),
-                   punctuation_fe(args.config)
+                   punctuation_fe(args.config),
+                   structure_fe(args.config)
                ])
 
 if type(args.language) == str:

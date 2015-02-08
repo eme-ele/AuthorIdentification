@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from nltk.tokenize import RegexpTokenizer
+from textblob import TextBlob
 from datetime import datetime
 import numpy as np
 import stop_words
@@ -83,6 +84,23 @@ class num_tokens_fe(feature_extractor):
 
         return author
 
+
+class structure_fe(feature_extractor):
+    def compute_features(self, author):
+        documents = [TextBlob(d) for d in author["corpus"]]
+        sentences = [d.sentences for d in documents]
+        nsentences = [len(d) for d in sentences]
+
+        author = self.db.set_feature(author, "sentences_min",
+                                     np.min(nsentences))
+        author = self.db.set_feature(author, "sentences_max",
+                                     np.max(nsentences))
+        author = self.db.set_feature(author, "sentences_avg",
+                                     np.mean(nsentences))
+
+        return author
+    #Avg/min/max Paragraphs per document
+    
 class stop_words_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
