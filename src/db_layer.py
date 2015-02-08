@@ -113,10 +113,17 @@ class db_layer:
         author["features"][ft_name] = ft_value
 
         if commit:
-            self.update_article(author)
+            self.update_author(author)
 
         return author
 
     def clear_features(self, author, commit=False):
+        if type(author) != dict:
+            author = self.get_author(author)
+
         author["features"] = {}
+
+        if commit:
+            self.update_author(author)
+
         return author

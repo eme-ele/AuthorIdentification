@@ -17,6 +17,9 @@ if __name__ != '__main__':
 parser = argparse.ArgumentParser(\
     description="Train and compute the authors' features.",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--clear', metavar="C", nargs=1,
+                    default=[0], type=int,
+                    help='Clear previous features (0-1)')
 parser.add_argument('--train', metavar="T", nargs=1,
                     default=[1], type=int,
                     help='Train features (0-1)')
@@ -50,6 +53,15 @@ for ln in args.language:
 
     authors = db.get_authors(ln)
 
+    if args.clear[0]:
+        print "Clearing features..."
+        for id_author, author in enumerate(authors):
+            db.clear_features(author, commit=True)
+
+            if id_author % 10 == 0:
+                print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
+                os.sys.stdout.flush()
+
     if args.train[0]:
         fe.train(authors)
         print "Training done..."
@@ -61,9 +73,5 @@ for ln in args.language:
             if id_author % 10 == 0:
                 print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
-            #ft = author["features"].items()
-            #ft.sort()
-            #for f, v in ft:
-                #print "%30s %10.2f" % (f, v)
         print
     print

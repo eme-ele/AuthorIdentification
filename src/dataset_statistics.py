@@ -6,6 +6,7 @@ from db_layer import db_layer
 import numpy as np
 import argparse
 
+
 def main():
     parser = argparse.ArgumentParser(\
         description="Compute the dataset statistics.",

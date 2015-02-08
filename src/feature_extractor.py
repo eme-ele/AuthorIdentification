@@ -9,6 +9,7 @@ import stop_words
 import json
 import os
 import tempfile
+import re
 
 from db_layer import db_layer
 import utils
@@ -19,6 +20,18 @@ class feature_extractor(object):
         self.config_file = config_file
         self.config = utils.get_configuration(config_file)
         self.db = db_layer(config_file)
+        self.paragraph_re = r'.+\n'
+
+    def get_paragraphs(self, documents):
+        ret = [list(re.findall(self.paragraph_re, d + '\n')) \
+                   for d in documents]
+        ret = utils.flatten(ret)
+        ret = [p for p in ret if len(p.split()) > 0]
+        return ret
+
+    def get_sentences(self, documents):
+        ret = utils.flatten([TextBlob(d).sentences for d in documents])
+        return [t.string for t in ret]
 
     def train(self, urls):
         pass
@@ -57,50 +70,85 @@ class clear_fe(feature_extractor):
     def compute_features(self, author):
         return self.db.clear_features(author, commit=False)
 
+
 class num_tokens_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         super(num_tokens_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
 
-    def compute_features(self, author):
-        documents = [self.tokenizer.tokenize(d) for d in author["corpus"]]
-        unique_tokens = [list(set(t)) for t in documents]
-        
+    def get_features(self, author, corpus, prefix):
+        corpus = [self.tokenizer.tokenize(d) for d in corpus]
+        unique_tokens = [list(set(t)) for t in corpus]
+
         # Number of tokens per document
-        ntokens = map(len, documents)
-        author = self.db.set_feature(author, "tokens_avg", np.mean(ntokens))
-        author = self.db.set_feature(author, "tokens_min", np.min(ntokens))
-        author = self.db.set_feature(author, "tokens_max", np.max(ntokens))
+        ntokens = map(len, corpus)
+        author = self.db.set_feature(author, prefix + "tokens_avg",
+                                     np.mean(ntokens))
+        author = self.db.set_feature(author, prefix + "tokens_min",
+                                     np.min(ntokens))
+        author = self.db.set_feature(author, prefix + "tokens_max",
+                                     np.max(ntokens))
 
         # Number of unique tokens per document (binary occurence)
-        n_unique_tokens = [float(len(u)) / t \
+        n_unique_tokens = [float(len(u)) / max(1, t) \
                             for u, t in zip(unique_tokens, ntokens)]
-        author = self.db.set_feature(author, "unique_tokens_avg",
+        author = self.db.set_feature(author, prefix + "unique_tokens_avg",
                                      np.mean(n_unique_tokens))
-        author = self.db.set_feature(author, "unique_tokens_min",
+        author = self.db.set_feature(author, prefix + "unique_tokens_min",
                                      np.min(n_unique_tokens))
-        author = self.db.set_feature(author, "unique_tokens_max",
+        author = self.db.set_feature(author, prefix + "unique_tokens_max",
                                      np.max(n_unique_tokens))
+        return author
 
+    def compute_features(self, author):
+        author = self.get_features(author, author["corpus"],
+                                   "document::")
+        author = self.get_features(author,
+                                   self.get_paragraphs(author["corpus"]),
+                                   "paragraph::")
+        author = self.get_features(author,
+                                   self.get_sentences(author["corpus"]),
+                                   "sentence::")
         return author
 
 
 class structure_fe(feature_extractor):
     def compute_features(self, author):
         documents = [TextBlob(d) for d in author["corpus"]]
-        sentences = [d.sentences for d in documents]
-        nsentences = [len(d) for d in sentences]
+        d_sentences = [d.sentences for d in documents]
+        d_nsentences = [len(d) for d in d_sentences]
 
-        author = self.db.set_feature(author, "sentences_min",
-                                     np.min(nsentences))
-        author = self.db.set_feature(author, "sentences_max",
-                                     np.max(nsentences))
-        author = self.db.set_feature(author, "sentences_avg",
-                                     np.mean(nsentences))
+        paragraphs = [TextBlob(d) \
+                        for d in self.get_paragraphs(author["corpus"])]
+        p_sentences = [d.sentences for d in paragraphs]
+        p_nsentences = [len(d) for d in p_sentences]
+
+        author = self.db.set_feature(author, "document::sentences_min",
+                                     np.min(d_nsentences))
+        author = self.db.set_feature(author, "document::sentences_max",
+                                     np.max(d_nsentences))
+        author = self.db.set_feature(author, "document::sentences_avg",
+                                     np.mean(d_nsentences))
+
+        author = self.db.set_feature(author, "paragraph::sentences_min",
+                                     np.min(p_nsentences))
+        author = self.db.set_feature(author, "paragraph::sentences_max",
+                                     np.max(p_nsentences))
+        author = self.db.set_feature(author, "paragraph::sentences_avg",
+                                     np.mean(p_nsentences))
+
+        paragraphs_per_document = [len(self.get_paragraphs([d]))\
+                                    for d in author["corpus"]]
+        author = self.db.set_feature(author, "document::paragraph_min",
+                                     np.min(paragraphs_per_document))
+        author = self.db.set_feature(author, "document::paragraph_max",
+                                     np.max(paragraphs_per_document))
+        author = self.db.set_feature(author, "document::paragraph_avg",
+                                     np.mean(paragraphs_per_document))
 
         return author
-    #Avg/min/max Paragraphs per document
-    
+
+
 class stop_words_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
@@ -109,7 +157,7 @@ class stop_words_fe(feature_extractor):
                 return stop_words.get_stop_words(mapped_lang)
             except:
                 return []
-            
+
         super(stop_words_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
         self.stopwords = {ln: get_stop_words(ln) \
@@ -119,7 +167,7 @@ class stop_words_fe(feature_extractor):
         lang = self.db.get_author_language(author["id"])
         stopwords = self.stopwords[lang]
         documents = [self.tokenizer.tokenize(d) for d in author["corpus"]]
-        
+
         # Occurrences of the stop-words in the text
         ntokens = map(len, documents)
         stop_tokens = [[x for x in d if x in stopwords] for d in documents]
@@ -143,15 +191,16 @@ class stop_words_fe(feature_extractor):
                                      np.min(n_sw_unique))
         author = self.db.set_feature(author, "unique_stop_words_max",
                                      np.max(n_sw_unique))
-        
+
         #TODO: include a BoW encoding the occurrences of each stop-word
 
         return author
 
+
 class punctuation_fe(feature_extractor):
     def compute_features(self, author):
         def avg_min_max_char(documents, char):
-            l = [len(filter(lambda x: x == char, d)) for d in documents]
+            l = [d.count(char) for d in documents]
             if len(l) == 0:
                 l = [0]
 
@@ -159,11 +208,14 @@ class punctuation_fe(feature_extractor):
 
         def set_avg_min_max(author, punctuation, name, char):
             avg_char, min_char, max_char = avg_min_max_char(punctuation, char)
-            author = self.db.set_feature(author, "puntuation_" + name + "_avg",
+            author = self.db.set_feature(author,
+                                         "punctuation_" + name + "_avg",
                                          avg_char)
-            author = self.db.set_feature(author, "puntuation_" + name + "_min",
+            author = self.db.set_feature(author,
+                                         "punctuation_" + name + "_min",
                                          min_char)
-            author = self.db.set_feature(author, "puntuation_" + name + "_max",
+            author = self.db.set_feature(author,
+                                         "punctuation_" + name + "_max",
                                          max_char)
             return author
 
@@ -173,18 +225,20 @@ class punctuation_fe(feature_extractor):
 
         len_punctuation = [len(x) for x in punctuation]
 
-        author = self.db.set_feature(author, "puntuation_avg",
+        author = self.db.set_feature(author, "punctuation_avg",
                                      np.mean(len_punctuation))
-        author = self.db.set_feature(author, "puntuation_min",
+        author = self.db.set_feature(author, "punctuation_min",
                                      np.min(len_punctuation))
-        author = self.db.set_feature(author, "puntuation_max",
+        author = self.db.set_feature(author, "punctuation_max",
                                      np.max(len_punctuation))
-        
+
         author = set_avg_min_max(author, punctuation, "points", '.')
         author = set_avg_min_max(author, punctuation, "commas", ',')
         author = set_avg_min_max(author, punctuation, "semi_colon", ';')
         author = set_avg_min_max(author, punctuation, "question", '?')
+        author = set_avg_min_max(author, punctuation, "open_question", u'¿')
         author = set_avg_min_max(author, punctuation, "exclamation", '!')
+        author = set_avg_min_max(author, punctuation, "open_exclamation", u'¡')
         author = set_avg_min_max(author, punctuation, "double_quote", '"')
         author = set_avg_min_max(author, punctuation, "single_quote", '\'')
 
