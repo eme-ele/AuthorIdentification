@@ -532,7 +532,7 @@ class stopword_topics_fe(feature_extractor):
         # topics are abstract, index number will be the identifier
         for (index, prop) in topics:
             self.db.set_feature(author,
-                                "LDA::word::" + index,
+                                "LDA::stopword::" + index,
                                 prop)
 
         return author
