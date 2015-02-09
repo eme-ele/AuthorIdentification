@@ -3,6 +3,7 @@
 
 from nltk.tokenize import RegexpTokenizer
 from textblob import TextBlob
+from gensim import corpora, models
 from datetime import datetime
 import numpy as np
 import stop_words
@@ -233,13 +234,13 @@ class punctuation_fe(feature_extractor):
                                      "punctuation_" + name + "_max",
                                      max_char)
         return author
-    
+
     def get_features(self, author, corpus, prefix):
         punctuation = [filter(lambda x: not x.isalnum() and \
                                         not x.isspace(),
                               d) for d in corpus]
         len_punctuation = [len(x) for x in punctuation]
-        
+
         author = self.db.set_feature(author, prefix + "punctuation_avg",
                                      np.mean(len_punctuation))
         author = self.db.set_feature(author, prefix + "punctuation_min",
@@ -281,6 +282,9 @@ class punctuation_fe(feature_extractor):
         return author
 
 
+
+
+
 class char_distribution_fe(feature_extractor):
     def train(self, authors):
         self.chars = [self.db.get_author(a)["corpus"] for a in authors]
@@ -301,7 +305,7 @@ class char_distribution_fe(feature_extractor):
                 ret.append(float(distribution[ch]) / document_length)
 
             return ret
-        
+
         # Bag-of-Words
         author_chars = [get_distribution(d) for d in author["corpus"]]
         author_chars = np.divide(np.sum(author_chars, axis=0),
@@ -311,10 +315,10 @@ class char_distribution_fe(feature_extractor):
             author = self.db.set_feature(author,
                                          "BoW::abc::" + char,
                                          value)
-        
+
         # Digits, uppercase, lowercase
         doc_length = [len(d) for d in author["corpus"]]
-        
+
         digits = [filter(lambda x: x.isdigit(), d) for d in author["corpus"]]
         digits = [float(len(x)) / y for (x, y) in zip(digits, doc_length)]
         author = self.db.set_feature(author, "num_digits_avg", np.mean(digits))
@@ -326,7 +330,7 @@ class char_distribution_fe(feature_extractor):
         author = self.db.set_feature(author, "uppercase_avg", np.mean(upper))
         author = self.db.set_feature(author, "uppercase_min", np.min(upper))
         author = self.db.set_feature(author, "uppercase_max", np.max(upper))
-        
+
         lower = [filter(lambda x: x.islower(), d) for d in author["corpus"]]
         lower = [float(len(x)) / y for (x, y) in zip(lower, doc_length)]
         author = self.db.set_feature(author, "lower_case_avg", np.mean(lower))
@@ -334,3 +338,203 @@ class char_distribution_fe(feature_extractor):
         author = self.db.set_feature(author, "lower_case_max", np.max(lower))
 
         return author
+
+
+class word_distribution_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
+
+        super(word_distribution_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+
+    def train(self, authors):
+        languages = list(set([self.db.get_author_language(a) for a in authors]))
+        stopword_list = [x[lang] for lang in languages]
+        stopword_list = utils.flatten(stopword_list)
+        self.words = [self.db.get_author(a)["corpus"] for a in authors]
+        self.words = utils.flatten(self.words)
+        self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
+        self.words = utils.flatten(self.words)
+        self.words =  list(set([x.lower() for x in self.words]))
+        self.words = filter(lambda x: x not in stopword_list, self.words)
+        self.words.sort()
+
+    def compute_features(self, author):
+        def get_distribution(document):
+            distribution = self.tokenizer.tokenize(document)
+            distribution = [x.lower for x in distribution]
+            document_length = len(distribution)
+            distribution = Counter(distribution)
+
+            ret = []
+            for w in self.words:
+                ret.append(float(distribution[w]) / document_length)
+
+            return ret
+
+        # Bag-of-Words
+        author_words = [get_distribution(d) for d in author["corpus"]]
+        author_words = np.divide(np.sum(author_words, axis=0),
+                                 len(author_words))
+
+        for id_w, (word, value) in enumerate(zip(self.words, author_words)):
+            author = self.db.set_feature(author,
+                                         "BoW::word::" + word,
+                                         value)
+        return author
+
+
+class stopword_distribution_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
+
+        super(stopword_distribution_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+
+    def train(self, authors):
+        languages = list(set([self.db.get_author_language(a) for a in authors]))
+        stopword_list = [x[lang] for lang in languages]
+        stopword_list = utils.flatten(stopword_list)
+        self.words = [self.db.get_author(a)["corpus"] for a in authors]
+        self.words = utils.flatten(self.words)
+        self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
+        self.words = utils.flatten(self.words)
+        self.words = list(set([x.lower() for x in self.words]))
+        self.words = filter(lambda x: x in stopword_list, self.words)
+        self.words.sort()
+
+    def compute_features(self, author):
+        def get_distribution(document):
+            distribution = self.tokenizer.tokenize(document)
+            distribution = [x.lower() for x in distribution]
+            document_length = len(distribution)
+            distribution = Counter(distribution)
+
+            ret = []
+            for w in self.words:
+                ret.append(float(distribution[w]) / document_length)
+
+            return ret
+
+        # Bag-of-Words
+        author_words = [get_distribution(d) for d in author["corpus"]]
+        author_words = np.divide(np.sum(author_words, axis=0),
+                                 len(author_words))
+
+        for id_w, (word, value) in enumerate(zip(self.words, author_words)):
+            author = self.db.set_feature(author,
+                                         "BoW::word::" + word,
+                                         value)
+        return author
+
+
+
+class word_topics_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
+        super(word_topics_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+
+    def train(self, authors):
+        # get set of languages used in training set corpus
+        languages = list(set([self.db.get_author_language(a) for a in authors]))
+        # create a full stopwod list of all the languages used
+        stopword_list = [x[lang] for lang in languages]
+        stopword_list = utils.flatten(stopword_list)
+        # transform corpus into a list of preprocessed documents
+        documents = [self.db.get_author(a)["corpus"] for a in authors]
+        documents = utils.flatten(documents)
+        documents = map(lambda x: self.tokenizer.tokenize(x), documents)
+        documents = [map(lambda x: x.lower(), d) for d in documents]
+        documents = [filter(lambda x: x not in stopword_list, d) for d in documents]
+        # build topic model
+        self.dictionary = corpora.Dictionary(documents)
+        documents = map(lambda x: self.dictionary.doc2bow(x), documents)
+        self.model = models.LdaModel(documents, num_topics=10, id2word=self.dictionary, iterations=1000)
+
+    def compute_features(self, author):
+        # join all documents as single document
+        document = " ".join(author["corpus"])
+        # preprocess single document
+        lang = db.get_author_language(author)
+        document = self.tokenizer.tokenize(document)
+        document = filter(lambda x: x not in self.stopwords[lang], document)
+        topics = self.model[self.dictionary.doc2bow(document)]
+        # topics are abstract, index number will be the identifier
+        for (index, prop) in topics:
+            self.db.set_feature(author,
+                                "LDA::word::" + index,
+                                prop)
+
+        return author
+
+
+class stopword_topics_fe(feature_extractor):
+    def __init__():
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
+        super(word_topics_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+
+    def train(self, authors):
+        # get set of languages used in training set corpus
+        languages = list(set([self.db.get_author_language(a) for a in authors]))
+        # create a stopwod list of all the languages used
+        stopword_list = [x[lang] for lang in languages]
+        stopword_list = utils.flatten(stopword_list)
+        # transform corpus into a list of preprocessed documents
+        documents = [self.db.get_author(a)["corpus"] for a in authors]
+        documents = utils.flatten(documents)
+        documents = map(lambda x: self.tokenizer.tokenize(x), documents)
+        documents = [map(lambda x: x.lower(), d) for d in documents]
+        documents = [filter(lambda x: x in stopword_list, d) for d in documents]
+        # build topic model
+        self.dictionary = corpora.Dictionary(documents)
+        documents = map(lambda x: self.dictionary.doc2bow(x), documents)
+        self.model = models.LdaModel(documents, num_topics=10, id2word=self.dictionary, iterations=1000)
+
+
+    def compute_features(self, author):
+        # join all documents as single document
+        document = " ".join(author["corpus"])
+        # preprocess single document
+        lang = db.get_author_language(author)
+        document = self.tokenizer.tokenize(document)
+        document = filter(lambda x: x in self.stopwords[lang], document)
+        topics = self.model[self.dictionary.doc2bow(document)]
+        # topics are abstract, index number will be the identifier
+        for (index, prop) in topics:
+            self.db.set_feature(author,
+                                "LDA::word::" + index,
+                                prop)
+
+        return author
+
+
