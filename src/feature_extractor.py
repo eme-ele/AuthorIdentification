@@ -284,11 +284,48 @@ class punctuation_fe(feature_extractor):
 
 
 class spacing_fe(feature_extractor):
-    def get_features(self, author, corpus, prefix):
-        pass
-    
+
+    def set_avg_min_max(self, author, name, elements):
+        author = self.db.set_feature(author,
+                                     "spacing_" + name + "_avg",
+                                     mean(elements))
+        author = self.db.set_feature(author,
+                                     "spacing_" + name + "_min",
+                                     min(elements))
+        author = self.db.set_feature(author,
+                                     "spacing_" + name + "_max",
+                                     max(elements))
+        return author
+
     def compute_features(self, author):
-        pass
+
+        num_consecutive_spaces = []
+        num_empty_lines = []
+        num_consecutive_spaces_beg = []
+        num_consecutive_spaces_end = []
+
+        for document in self.db.get_author["corpus"]:
+            spaces = re.findall(r'\s+', document)
+            num_consecutive_spaces += map(lambda x: len(x), spaces)
+
+            spaces = re.findall(r'\.(\n+)', document)
+            num_empty_lines += map(lambda x: len(x), spaces)
+
+            lines = document.split("\n")
+            lines = filter(lambda x: x is not "", lines)
+
+            spaces = map(lambda x: re.match(r'^(\s+).*', x), lines)
+            num_consecutive_spaces_beg += [len(x.group(1)) if x is not None else 0 for x in spaces]
+
+            spaces = map(lambda x: re.match(r'.*(\s+)$', x), a)
+            num_consecutive_spaces_end += [len(x.group(1)) if x is not None else 0 for x in spaces]
+
+        author = self.set_avg_min_max(author, "consecutive", num_consecutive_spaces)
+        author = self.set_avg_min_max(author, "empty_lines", num_empty_lines)
+        author = self.set_avg_min_max(author, "consecutive_beginning", num_empty_lines)
+        author = self.set_avg_min_max(author, "consecutive_ending", num_empty_lines)
+
+        return author
 
 
 class char_distribution_fe(feature_extractor):
