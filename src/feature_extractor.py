@@ -304,7 +304,7 @@ class spacing_fe(feature_extractor):
         num_consecutive_spaces_beg = []
         num_consecutive_spaces_end = []
 
-        for document in self.db.get_author["corpus"]:
+        for document in self.db.get_author(author)["corpus"]:
             spaces = re.findall(r'\s+', document)
             num_consecutive_spaces += map(lambda x: len(x), spaces)
 
