@@ -283,7 +283,12 @@ class punctuation_fe(feature_extractor):
         return author
 
 
-
+class spacing_fe(feature_extractor):
+    def get_features(self, author, corpus, prefix):
+        pass
+    
+    def compute_features(self, author):
+        pass
 
 
 class char_distribution_fe(feature_extractor):
@@ -528,5 +533,4 @@ class stopword_topics_fe(feature_extractor):
                                 prop)
 
         return author
-
 
