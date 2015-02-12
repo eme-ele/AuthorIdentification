@@ -12,6 +12,7 @@ import os
 import tempfile
 import re
 from collections import Counter
+from operator import add
 
 from db_layer import db_layer
 import utils
@@ -355,15 +356,13 @@ class word_distribution_fe(feature_extractor):
                                 for ln in self.db.get_languages()}
 
     def train(self, authors):
-        languages = list(set([self.db.get_author_language(a) for a in authors]))
-        stopword_list = [x[lang] for lang in languages]
-        stopword_list = utils.flatten(stopword_list)
+        lang = self.db.get_author_language(authors[0])
         self.words = [self.db.get_author(a)["corpus"] for a in authors]
         self.words = utils.flatten(self.words)
         self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
         self.words = utils.flatten(self.words)
         self.words =  list(set([x.lower() for x in self.words]))
-        self.words = filter(lambda x: x not in stopword_list, self.words)
+        self.words = filter(lambda x: x not in self.stopwords[lang], self.words)
         self.words.sort()
 
     def compute_features(self, author):
@@ -406,15 +405,13 @@ class stopword_distribution_fe(feature_extractor):
                                 for ln in self.db.get_languages()}
 
     def train(self, authors):
-        languages = list(set([self.db.get_author_language(a) for a in authors]))
-        stopword_list = [x[lang] for lang in languages]
-        stopword_list = utils.flatten(stopword_list)
+        lang = self.db.get_author_language(authors[0])
         self.words = [self.db.get_author(a)["corpus"] for a in authors]
         self.words = utils.flatten(self.words)
         self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
         self.words = utils.flatten(self.words)
         self.words = list(set([x.lower() for x in self.words]))
-        self.words = filter(lambda x: x in stopword_list, self.words)
+        self.words = filter(lambda x: x in self.stopwords[lang], self.words)
         self.words.sort()
 
     def compute_features(self, author):
@@ -455,39 +452,37 @@ class word_topics_fe(feature_extractor):
         self.tokenizer = RegexpTokenizer(r'\w+')
         self.stopwords = {ln: get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
+        self.k = 10
 
     def train(self, authors):
-        # get set of languages used in training set corpus
-        languages = list(set([self.db.get_author_language(a) for a in authors]))
-        # create a full stopwod list of all the languages used
-        stopword_list = [x[lang] for lang in languages]
-        stopword_list = utils.flatten(stopword_list)
+        lang = self.db.get_author_language(authors[0])
         # transform corpus into a list of preprocessed documents
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
         documents = map(lambda x: self.tokenizer.tokenize(x), documents)
         documents = [map(lambda x: x.lower(), d) for d in documents]
-        documents = [filter(lambda x: x not in stopword_list, d) for d in documents]
+        documents = [filter(lambda x: x not in self.stopwords[lang], d) for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
-        self.model = models.LdaModel(documents, num_topics=10, id2word=self.dictionary, iterations=1000)
+        self.model = models.LdaModel(documents, num_topics=self.k, id2word=self.dictionary, iterations=1000)
 
     def compute_features(self, author):
-        # join all documents as single document
-        document = " ".join(author["corpus"])
-        # preprocess single document
-        lang = db.get_author_language(author)
-        document = self.tokenizer.tokenize(document)
-        document = filter(lambda x: x not in self.stopwords[lang], document)
-        topics = self.model[self.dictionary.doc2bow(document)]
-        # topics are abstract, index number will be the identifier
+        topics = [0.0]*self.k
+        for document in author["corpus"]:
+            lang = db.get_author_language(author)
+            document = self.tokenizer.tokenize(document)
+            document = filter(lambda x: x not in self.stopwords[lang], document)
+            topics = map(add, topics, self.model[self.dictionary.doc2bow(document)])
+        # average of the topic distribution
+        topics = map(lambda x: x/self.k, topics)
         for (index, prop) in topics:
             self.db.set_feature(author,
                                 "LDA::word::" + index,
                                 prop)
 
         return author
+
 
 
 class stopword_topics_fe(feature_extractor):
@@ -502,34 +497,31 @@ class stopword_topics_fe(feature_extractor):
         self.tokenizer = RegexpTokenizer(r'\w+')
         self.stopwords = {ln: get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
+        self.k = 10
 
     def train(self, authors):
-        # get set of languages used in training set corpus
-        languages = list(set([self.db.get_author_language(a) for a in authors]))
-        # create a stopwod list of all the languages used
-        stopword_list = [x[lang] for lang in languages]
-        stopword_list = utils.flatten(stopword_list)
+        lang = self.db.get_author_language(authors[0])
         # transform corpus into a list of preprocessed documents
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
         documents = map(lambda x: self.tokenizer.tokenize(x), documents)
         documents = [map(lambda x: x.lower(), d) for d in documents]
-        documents = [filter(lambda x: x in stopword_list, d) for d in documents]
+        documents = [filter(lambda x: x in self.stopwords[lang], d) for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
-        self.model = models.LdaModel(documents, num_topics=10, id2word=self.dictionary, iterations=1000)
+        self.model = models.LdaModel(documents, num_topics=self.k, id2word=self.dictionary, iterations=1000)
 
 
     def compute_features(self, author):
-        # join all documents as single document
-        document = " ".join(author["corpus"])
-        # preprocess single document
-        lang = db.get_author_language(author)
-        document = self.tokenizer.tokenize(document)
-        document = filter(lambda x: x in self.stopwords[lang], document)
-        topics = self.model[self.dictionary.doc2bow(document)]
-        # topics are abstract, index number will be the identifier
+        topics = [0.0]*self.k
+        for document in author["corpus"]:
+            lang = db.get_author_language(author)
+            document = self.tokenizer.tokenize(document)
+            document = filter(lambda x: x in self.stopwords[lang], document)
+            topics = map(add, topics, self.model[self.dictionary.doc2bow(document)])
+        # average of the topic distribution
+        topics = map(lambda x: x/self.k, topics)
         for (index, prop) in topics:
             self.db.set_feature(author,
                                 "LDA::stopword::" + index,
