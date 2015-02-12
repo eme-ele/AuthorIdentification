@@ -288,13 +288,13 @@ class spacing_fe(feature_extractor):
     def set_avg_min_max(self, author, name, elements):
         author = self.db.set_feature(author,
                                      "spacing_" + name + "_avg",
-                                     mean(elements))
+                                     np.mean(elements))
         author = self.db.set_feature(author,
                                      "spacing_" + name + "_min",
-                                     min(elements))
+                                     np.min(elements))
         author = self.db.set_feature(author,
                                      "spacing_" + name + "_max",
-                                     max(elements))
+                                     np.max(elements))
         return author
 
     def compute_features(self, author):
