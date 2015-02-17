@@ -410,7 +410,7 @@ class word_distribution_fe(feature_extractor):
     def compute_features(self, author):
         def get_distribution(document):
             distribution = self.tokenizer.tokenize(document)
-            distribution = [x.lower for x in distribution]
+            distribution = [x.lower() for x in distribution]
             document_length = len(distribution)
             distribution = Counter(distribution)
 
