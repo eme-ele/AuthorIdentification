@@ -38,6 +38,8 @@ db = db_layer(args.config)
 
 fe = concat_fe(args.config,
                [
+                   # hapax_fe(args.config),
+                   # pos_fe(args.config)
                    clear_fe(args.config),
                    num_tokens_fe(args.config),
                    stop_words_fe(args.config),

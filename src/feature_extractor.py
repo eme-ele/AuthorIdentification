@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from nltk.tokenize import RegexpTokenizer
+from nltk.corpus import cess_esp as cess
+from nltk import UnigramTagger as ut
+# from nltk import BigramTagger as bt
+
 from textblob import TextBlob
 from gensim import corpora, models
 from datetime import datetime
@@ -410,7 +414,7 @@ class word_distribution_fe(feature_extractor):
     def compute_features(self, author):
         def get_distribution(document):
             distribution = self.tokenizer.tokenize(document)
-            distribution = [x.lower for x in distribution]
+            distribution = [x.lower() for x in distribution]
             document_length = len(distribution)
             distribution = Counter(distribution)
 
@@ -419,19 +423,158 @@ class word_distribution_fe(feature_extractor):
                 ret.append(float(distribution[w]) / document_length)
 
             return ret
-
+            
         # Bag-of-Words
         author_words = [get_distribution(d) for d in author["corpus"]]
         author_words = np.divide(np.sum(author_words, axis=0),
                                  len(author_words))
-
+                                 
         for id_w, (word, value) in enumerate(zip(self.words, author_words)):
             author = self.db.set_feature(author,
                                          "BoW::word::" + word,
                                          value)
+                                         
+        
         return author
 
+class hapax_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
 
+        super(hapax_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+
+    def train(self, authors):
+        lang = self.db.get_author_language(authors[0])
+        documents = [self.db.get_author(a)["corpus"] for a in authors]
+        documents = utils.flatten(documents)
+        self.words = []
+        self.titles = {}
+        document_tokens = []
+        title = ''
+        for i in documents:
+            title = i.split('\n', 1)[0].strip().lower()
+            if not title in self.titles:
+                document_tokens =  [x.lower() for x in self.tokenizer.tokenize(i)]
+                self.titles[title] = Counter(document_tokens)
+                self.titles[title] = set([i for i in self.titles[title]\
+                                             if self.titles[title][i] == 1])                 
+                self.words += document_tokens
+                
+        self.words = Counter([x.lower() for x in self.words])        
+        self.words = set([i for i in self.words if self.words[i] == 1])
+        for title in self.titles:
+            self.titles[title] = len(self.words.intersection(self.titles[title]))        
+
+
+    def compute_features(self, author):
+        def get_author_titles(author_corpus):
+            author_titles = \
+                [i.split('\n',1)[0].strip().lower() for i in author_corpus]
+            return author_titles
+            
+        # Bag-of-Words
+        author_titles = get_author_titles(author["corpus"])
+        _max = -1
+        _min = float('inf')
+        _avg = 0
+        for i in author_titles:
+            num_hapax = self.titles[i]
+            if num_hapax > _max:
+                _max = num_hapax
+            if num_hapax < _min:
+                _min = num_hapax 
+            _avg += num_hapax
+        _avg = _avg/float(len(author_titles))
+        print "avg: ", _avg, "      max: ", _max, "      min: ", _min
+        # author_hapax = len(self.words.intersection(author_words))
+        
+        author = self.db.set_feature(author, "style::single_unique_language_tokens_max", _max)
+        author = self.db.set_feature(author, "style::single_unique_language_tokens_min", _min)
+        author = self.db.set_feature(author, "style::single_unique_language_tokens_avg", _avg)
+        
+        return author
+        
+class pos_fe(feature_extractor):
+    def __init__(self, config_file="conf/config.json"):
+        def get_stop_words(lang):
+            try:
+                mapped_lang = self.config["languages"][lang]
+                return stop_words.get_stop_words(mapped_lang)
+            except:
+                return []
+
+        super(pos_fe, self).__init__(config_file)
+        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.stopwords = {ln: get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+
+    def train(self, authors):
+        lang = self.db.get_author_language(authors[0])
+        self.words = [self.db.get_author(a)["corpus"] for a in authors]
+        self.words = utils.flatten(self.words)
+        self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
+        self.words = utils.flatten(self.words)
+        self.words = list(set([x.lower() for x in self.words]))
+        print self.words
+        cess_sents = cess.tagged_sents()
+        uni_tag = ut(cess_sents)
+        print uni_tag.tag(self.words)
+        exit(-1)
+        # self.words = []
+        # self.titles = {}
+        # document_tokens = []
+        # title = ''
+        # for i in documents:
+        #     title = i.split('\n', 1)[0].strip().lower()
+        #     if not title in self.titles:
+        #         document_tokens =  [x.lower() for x in self.tokenizer.tokenize(i)]
+        #         self.titles[title] = Counter(document_tokens)
+        #         self.titles[title] = set([i for i in self.titles[title]\
+        #                                      if self.titles[title][i] == 1])
+        #         self.words += document_tokens
+        #
+        # self.words = Counter([x.lower() for x in self.words])
+        # self.words = set([i for i in self.words if self.words[i] == 1])
+        # for title in self.titles:
+        #     self.titles[title] = len(self.words.intersection(self.titles[title]))        
+
+
+    def compute_features(self, author):
+        def get_author_titles(author_corpus):
+            author_titles = \
+                [i.split('\n',1)[0].strip().lower() for i in author_corpus]
+            return author_titles
+            
+        # Bag-of-Words
+        author_titles = get_author_titles(author["corpus"])
+        _max = -1
+        _min = float('inf')
+        _avg = 0
+        for i in author_titles:
+            num_hapax = self.titles[i]
+            if num_hapax > _max:
+                _max = num_hapax
+            if num_hapax < _min:
+                _min = num_hapax 
+            _avg += num_hapax
+        _avg = _avg/float(len(author_titles))
+        print "avg: ", _avg, "      max: ", _max, "      min: ", _min
+        # author_hapax = len(self.words.intersection(author_words))
+        
+        author = self.db.set_feature(author, "style::single_unique_language_tokens_max", _max)
+        author = self.db.set_feature(author, "style::single_unique_language_tokens_min", _min)
+        author = self.db.set_feature(author, "style::single_unique_language_tokens_avg", _avg)
+        
+        return author
+        
 class stopword_distribution_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
