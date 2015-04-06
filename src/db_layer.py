@@ -54,6 +54,7 @@ class db_layer:
              "documents": self.get_author_documents(id_),
              "corpus": [],
              "features": {},
+             "path": self.get_author_path(id_),
             }
 
         self.update_author(author)
