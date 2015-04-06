@@ -20,7 +20,6 @@ from operator import add
 
 from db_layer import db_layer
 import utils
-from ttpw import treetaggerwrapper
 import commands as cmd
 import numpy
 import math
