@@ -82,8 +82,7 @@ class weighted_distance_classifier(classifier):
             self.weights[author] = [x / total_w for x in self.weights[author]]
 
             unknown = self.db.get_unknown_document(author)
-            
-            print dummy_author
+
             target = gt[author]
 
             print target

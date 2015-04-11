@@ -114,7 +114,7 @@ class db_layer:
     def get_unknown_document(self, id_):
         path = os.path.join(self.get_author_path(id_), "unknown.txt")
         f = open(path)
-        ret = f.read()
+        ret = f.read().decode("utf-8")
         f.close()
         
         return ret

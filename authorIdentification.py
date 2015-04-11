@@ -107,7 +107,7 @@ for ln in args.language:
             author = fe.compute(author, known=False)
 
             if (id_author + 1) % 10 == 0:
-                print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
+                print "%0.2f%%\r" % ((id_author + 1) * 100.0 / len(authors)),
                 os.sys.stdout.flush()
         print
     print
