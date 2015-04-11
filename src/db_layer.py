@@ -158,3 +158,13 @@ class db_layer:
         f.close()
         
         return ret
+
+    def get_ground_truth(self, language):
+        f = open(os.path.join(self.config["dataset"], language + "_truth.txt"))
+        ret = f.readlines()
+        f.close()
+        
+        ret = [x.strip().split() for x in ret]
+        ret = {x[0]: 1.0 if x[1] == 'Y' else 0.0 for x in ret}
+
+        return ret

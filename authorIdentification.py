@@ -97,12 +97,16 @@ for ln in args.language:
         print "Training features..."
         fe.train(authors)
         db.store_feature_extractor(fe, ln)
+    else:
+        fe = db.get_feature_extractor(ln)
 
     if args.compute[0]:
         print "Computing features..."
         for id_author, author in enumerate(authors):
-            author = fe.compute(author)
-            if id_author % 10 == 0:
+            author = fe.compute(author, known=True)
+            author = fe.compute(author, known=False)
+
+            if (id_author + 1) % 10 == 0:
                 print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
         print

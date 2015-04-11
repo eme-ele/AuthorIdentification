@@ -2,6 +2,7 @@ import numpy as np
 
 from src.db_layer import *
 import utils
+import copy
 import math
 
 
@@ -40,6 +41,8 @@ class classifier:
 class weighted_distance_classifier(classifier):
     def __init__(self, config, language):
         classifier.__init__(self, config, language)
+        self.weights = {}
+        self.threshold = 0.0
 
     def normal_p(mu, sigma, x):
         diff_x_mu = x - mu
@@ -60,12 +63,35 @@ class weighted_distance_classifier(classifier):
         
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
-        
-        print self.mean.shape, self.std.shape
+
         print samples.shape
-        for author in authors_id:
-            print self.db.get_unknown_document(author)
-            import os; os.sys.exit(0)
+        distances = []
+
+        gt = self.db.get_ground_truth(self.language)
+        
+        values = []
+        
+        for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
+            bounded_d = [min(max(mu - 2 * sigma, d), mu + 2 * sigma) \
+                            for (d, mu, sigma) in zip(descriptor,
+                                                      self.mean, self.std)]
+
+            self.weights[author] = [abs(d - mu) / (2.0 * s + 1e-7) \
+                                        for (d, s) in zip(bounded_d, self.std)]
+            total_w = sum(self.weights[author])
+            self.weights[author] = [x / total_w for x in self.weights[author]]
+
+            unknown = self.db.get_unknown_document(author)
+            
+            print dummy_author
+            target = gt[author]
+
+            print target
+            #for i in range(len(descriptor)):
+                #print descriptor[i], self.mean[i], self.std[i]
+            #print
+
+        import os; os.sys.exit(0)
 
     def predict(self, author, document):
         return 0.5

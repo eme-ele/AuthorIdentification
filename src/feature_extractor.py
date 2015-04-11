@@ -6,17 +6,18 @@ from nltk.corpus import cess_esp as cess
 from nltk import UnigramTagger as ut
 # from nltk import BigramTagger as bt
 
-from textblob import TextBlob
 from gensim import corpora, models
+from collections import Counter
 from datetime import datetime
+from textblob import TextBlob
+from operator import add
 import numpy as np
 import stop_words
+import tempfile
+import copy
 import json
 import os
-import tempfile
 import re
-from collections import Counter
-from operator import add
 
 from db_layer import db_layer
 import utils
@@ -47,12 +48,30 @@ class feature_extractor(object):
     def train(self, authors):
         pass
 
-    def compute(self, author):
+    def compute(self, author, known=True):
 
         if not type(author) == dict:
             author = self.db.get_author(author)
 
-        author = self.compute_features(author)
+        if known:
+            author = self.compute_features(author)
+
+        else:
+            documents_tmp = list(author["documents"])
+            corpus_tmp = list(author["corpus"])
+            features_tmp = copy.deepcopy(author["features"])
+
+            author["documents"] = ["unknown.txt"]
+            author["corpus"] = [self.db.get_unknown_document(author["id"])]
+            author["features"] = {}
+
+            author = self.compute_features(author)
+
+            author["documents"] = documents_tmp
+            author["corpus"] = corpus_tmp
+            author["unknown_features"] = copy.deepcopy(author["features"])
+            author["features"] = features_tmp
+
         self.db.update_author(author)
 
         return author
@@ -466,16 +485,18 @@ class hapax_fe(feature_extractor):
         for i in documents:
             title = i.split('\n', 1)[0].strip().lower()
             if not title in self.titles:
-                document_tokens =  [x.lower() for x in self.tokenizer.tokenize(i)]
+                document_tokens =  [x.lower() \
+                                    for x in self.tokenizer.tokenize(i)]
                 self.titles[title] = Counter(document_tokens)
                 self.titles[title] = set([i for i in self.titles[title]\
                                              if self.titles[title][i] == 1])                 
                 self.words += document_tokens
-                
+
         self.words = Counter([x.lower() for x in self.words])        
         self.words = set([i for i in self.words if self.words[i] == 1])
         for title in self.titles:
-            self.titles[title] = len(self.words.intersection(self.titles[title]))        
+            self.titles[title] = \
+                len(self.words.intersection(self.titles[title]))        
 
 
     def compute_features(self, author):
@@ -490,6 +511,7 @@ class hapax_fe(feature_extractor):
         _min = float('inf')
         _avg = 0
         for i in author_titles:
+            print self.titles
             num_hapax = self.titles[i]
             if num_hapax > _max:
                 _max = num_hapax
@@ -539,7 +561,7 @@ class pos_fe(feature_extractor):
         a_titles = utils.flatten(a_titles)
         tagger = 'src/pos_tagger/cmd/tree-tagger-'+\
                     self.config['languages'][lang]+' '
-        a_titles = ['cat '+ a+'|'+tagger for a in a_titles]        
+        a_titles = ['cat ' + a + '|' + tagger for a in a_titles]        
         self.lemmas = cmd.getoutput(';'.join(a_titles)).split('\n')
 
         self.lemmas = set([i.split('\t')[2] for i in self.lemmas \
