@@ -46,6 +46,12 @@ args = parser.parse_args()
 
 config = get_configuration(args.config)
 
+if type(args.i) != str:
+    args.i = args.i[0]
+
+if type(args.o) != str:
+    args.o = args.o[0]
+
 if type(args.language) == str:
     args.language = [args.language]
 
