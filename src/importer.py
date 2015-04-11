@@ -13,30 +13,31 @@ from utils import *
 
 def clear(languages , out_path, _all=0):    
     if _all:
-        cmd.getstatusoutput('rm -rf '+out_path+'/*')
+        cmd.getstatusoutput('rm -rf ' + out_path + '/*')
 
     for l in languages:
-        cmd.getstatusoutput('rm -rf '+out_path+'/'+ l +'*')
-        cmd.getstatusoutput('mkdir '+out_path+'/'+ l)
+        cmd.getstatusoutput('rm -rf ' + os.path.join(out_path, l) +'*')
+        cmd.getstatusoutput('mkdir ' + os.path.join(out_path, l))
 
 def import_languages(config, languages, in_path, out_path):
     current_id = 0
-    subfolders = cmd.getoutput('ls -1 '+ in_path + '/').split('\n')
-    subfolders = [in_path+'/'+sf for sf in subfolders]
+    subfolders = cmd.getoutput('ls -1 '+ in_path).split('\n')
+    subfolders = [os.path.join(in_path, sf) for sf in subfolders]
 
     lang_folders = {}
     for l in config['languages']:
         lang_folders[l] = []
     
     for sf in subfolders:        
-        aux = get_configuration(sf + '/contents.json')
+        aux = get_configuration(os.path.join(sf, 'contents.json'))
+        print os.path.join(sf, 'contents.json')
         aux['language'] = config['languages_inv'][aux['language'].lower()]
         aux['path'] = sf
         lang_folders[aux['language']].append(aux)
-    
+
     i = '0'
     for l in languages:    
-        lf_name = ' '+out_path+'/'+l+'/'
+        lf_name = ' ' + out_path + '/' + l + '/'
         truth = []
         for lf in lang_folders[l]:  
             lf['index'] = i

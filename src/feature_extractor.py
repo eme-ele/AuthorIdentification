@@ -534,13 +534,16 @@ class pos_fe(feature_extractor):
             return
             
         a_titles = [self.db.get_author(a) for a in authors]     
-        a_titles = [[a['path']+'/'+d for d in a['documents']] for a in a_titles]
+        a_titles = [[a['path'] + '/' + d for d in a['documents']] \
+                    for a in a_titles]
         a_titles = utils.flatten(a_titles)
         tagger = 'src/pos_tagger/cmd/tree-tagger-'+\
                     self.config['languages'][lang]+' '
         a_titles = ['cat '+ a+'|'+tagger for a in a_titles]        
         self.lemmas = cmd.getoutput(';'.join(a_titles)).split('\n')
-        self.lemmas = set([i.split('\t')[2] for i in self.lemmas if i[0] != '\t'])
+
+        self.lemmas = set([i.split('\t')[2] for i in self.lemmas \
+                        if i[0] != '\t'])
         # unwanted = set(['<unknown>','@card@'])
         # [self.lemmas.discard(u) for u in unwanted]
         self.lemmas = list(self.lemmas)
@@ -834,7 +837,8 @@ class stopword_topics_fe(feature_extractor):
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
-        self.model = models.LdaModel(documents, num_topics=self.k, id2word=self.dictionary, iterations=1000)
+        self.model = models.LdaModel(documents, num_topics=self.k,
+                                     id2word=self.dictionary, iterations=1000)
 
 
     def compute_features(self, author):

@@ -17,8 +17,8 @@
     },
     "features":
     [
-		"style::single_unique_language_tokens_max",
-		"style::single_unique_language_tokens_min",
-		"style::single_unique_language_tokens_avg"
+        "style::single_unique_language_tokens_max",
+        "style::single_unique_language_tokens_min",
+        "style::single_unique_language_tokens_avg"
     ]
 }
