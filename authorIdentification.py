@@ -13,6 +13,7 @@ from src.utils import *
 from src.importer import *
 from src.db_layer import *
 from src.feature_extractor import *
+from src.classifier import *
 
 if __name__ != '__main__':
     os.sys.exit(1)
@@ -40,6 +41,9 @@ parser.add_argument('--train', metavar="T", nargs=1,
 parser.add_argument('--compute', metavar="C", nargs=1,
                     default=[1], type=int,
                     help='Compute features (0-1)')
+parser.add_argument('--train-model', metavar="TM", nargs=1,
+                    default=[1], type=int,
+                    help='Train the model (0-1)')
 parser.add_argument('--config', metavar="conf", nargs='?',
                     default="conf/config.json", help='Configuration file')
 args = parser.parse_args()
@@ -61,20 +65,21 @@ if args.i != '':
 
 db = db_layer(args.config)
 
-fe = concat_fe(args.config,
-               [
-                   clear_fe(args.config),
-                   pos_fe(args.config),
-                   hapax_fe(args.config),
-                   word_distribution_fe(args.config),
-                   num_tokens_fe(args.config),
-                   stop_words_fe(args.config),
-                   punctuation_fe(args.config),
-                   structure_fe(args.config),
-                   char_distribution_fe(args.config)
-               ])
 
 for ln in args.language:
+    fe = concat_fe(args.config,
+                   [
+                       clear_fe(args.config),
+                       pos_fe(args.config),
+                       hapax_fe(args.config),
+                       word_distribution_fe(args.config),
+                       num_tokens_fe(args.config),
+                       stop_words_fe(args.config),
+                       punctuation_fe(args.config),
+                       structure_fe(args.config),
+                       char_distribution_fe(args.config)
+                   ])
+
     print "Language:", ln
 
     authors = db.get_authors(ln)
@@ -91,6 +96,7 @@ for ln in args.language:
     if args.train[0]:
         print "Training features..."
         fe.train(authors)
+        db.store_feature_extractor(fe, ln)
 
     if args.compute[0]:
         print "Computing features..."
@@ -101,3 +107,7 @@ for ln in args.language:
                 os.sys.stdout.flush()
         print
     print
+
+    if args.train_model[0]:
+        w_clf = weighted_distance_classifier(args.config, ln)
+        w_clf.train(authors)

@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
+import cPickle as pickle
 import numpy as np
 
+import tempfile
 import json
 import os
-import tempfile
 
 import utils
 
@@ -110,6 +111,14 @@ class db_layer:
 
         return author
 
+    def get_unknown_document(self, id_):
+        path = os.path.join(self.get_author_path(id_), "unknown.txt")
+        f = open(path)
+        ret = f.read()
+        f.close()
+        
+        return ret
+
     def set_feature(self, author, ft_name, ft_value, commit=False):
         author["features"][ft_name] = ft_value
 
@@ -128,3 +137,24 @@ class db_layer:
             self.update_author(author)
 
         return author
+
+    def feature_extractor_path(self, language):
+        return os.path.join(self.config["pickle"], language, "fe.pickle")
+
+    def store_feature_extractor(self, fe, language):
+        fe_path = self.feature_extractor_path(language)
+
+        if not os.path.exists(os.path.dirname(fe_path)):
+            os.makedirs(os.path.dirname(fe_path))
+
+        f = open(fe_path, 'w')
+        pickle.dump(fe, f)
+        f.close()
+
+    def get_feature_extractor(self, language):
+        fe_path = self.feature_extractor_path(language)
+        f = open(fe_path, 'rb')
+        ret = pickle.load(f)
+        f.close()
+        
+        return ret
