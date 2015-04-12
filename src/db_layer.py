@@ -152,9 +152,10 @@ class db_layer:
         f.close()
 
     def get_feature_extractor(self, language):
-        fe_path = self.feature_extractor_path(language)
+        fe_path = self.feature_extractor_path(language)        
         f = open(fe_path, 'rb')
         ret = pickle.load(f)
+            
         f.close()
         
         return ret
