@@ -72,12 +72,12 @@ for ln in args.language:
                        clear_fe(args.config),
                        # pos_fe(args.config),
                        hapax_fe(args.config),
-                       # word_distribution_fe(args.config),
-                       # num_tokens_fe(args.config),
-                       # stop_words_fe(args.config),
-                       # punctuation_fe(args.config),
-                       # structure_fe(args.config),
-                       # char_distribution_fe(args.config)
+                       word_distribution_fe(args.config),
+                       num_tokens_fe(args.config),
+                       stop_words_fe(args.config),
+                       punctuation_fe(args.config),
+                       structure_fe(args.config),
+                       char_distribution_fe(args.config)
                    ])
 
     print "Language:", ln
@@ -105,7 +105,7 @@ for ln in args.language:
         for id_author, author in enumerate(authors):
             author = fe.compute(author, known=True)
             author = fe.compute(author, known=False)
-            
+
             if (id_author + 1) % 10 == 0:
                 print "%0.2f%%\r" % ((id_author + 1) * 100.0 / len(authors)),
                 os.sys.stdout.flush()
