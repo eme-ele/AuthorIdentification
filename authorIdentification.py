@@ -8,6 +8,7 @@ import argparse
 import numpy as np
 import json
 import commands as cmd
+import random
 
 from src.utils import *
 from src.importer import *
@@ -70,8 +71,8 @@ for ln in args.language:
     fe = concat_fe(args.config,
                    [
                        clear_fe(args.config),
-                       pos_fe(args.config),
-                       hapax_fe(args.config),
+                       #pos_fe(args.config),
+                       #hapax_fe(args.config),
                        word_distribution_fe(args.config),
                        num_tokens_fe(args.config),
                        stop_words_fe(args.config),
@@ -114,4 +115,14 @@ for ln in args.language:
 
     if args.train_model[0]:
         w_clf = weighted_distance_classifier(args.config, ln)
-        w_clf.train(authors)
+        
+        #random.shuffle(authors)
+        gt = db.get_ground_truth(ln)
+        pos = [a for a in authors if gt[a] == 1.0]
+        neg = [a for a in authors if gt[a] == 0.0]
+
+        tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
+        ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
+
+        w_clf.train(tr)
+        print w_clf.accuracy(ts)
