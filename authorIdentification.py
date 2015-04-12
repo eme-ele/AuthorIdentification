@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 import sys
@@ -76,7 +75,7 @@ for ln in args.language:
                        # num_tokens_fe(args.config),
                        # stop_words_fe(args.config),
                        # punctuation_fe(args.config),
-                       # structure_fe(args.config),
+                           # structure_fe(args.config),
                        # char_distribution_fe(args.config)
                    ])
 
