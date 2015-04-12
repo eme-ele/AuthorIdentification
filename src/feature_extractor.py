@@ -475,6 +475,12 @@ class hapax_fe(feature_extractor):
                                 for ln in self.db.get_languages()}
 
     def train(self, authors):
+        def get_author_titles(author_corpus):
+            author_titles = {}
+            for i in author_corpus:
+                author_titles[i.split('\n',1)[0].strip().lower()] = i
+            return author_titles
+            
         lang = self.db.get_author_language(authors[0])
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
@@ -483,7 +489,7 @@ class hapax_fe(feature_extractor):
         document_tokens = []
         title = ''
         for i in documents:
-            title = i.split('\n', 1)[0].strip().lower()
+            title = i.strip().split('\n', 1)[0].lower()
             if not title in self.titles:
                 document_tokens =  [x.lower() \
                                     for x in self.tokenizer.tokenize(i)]
@@ -494,40 +500,66 @@ class hapax_fe(feature_extractor):
 
         self.words = Counter([x.lower() for x in self.words])        
         self.words = set([i for i in self.words if self.words[i] == 1])
-        for title in self.titles:
-            self.titles[title] = \
-                len(self.words.intersection(self.titles[title]))        
+        
+        self.author_hapax = {}        
+        for a in authors:
+            author_h = self.db.get_author(a)["corpus"]            
+            author_h = [i.strip().split('\n', 1)[0].lower() for i in \
+                    author_h]
+            author_h = utils.flatten([self.titles[i] for i in author_h])
+            self.author_hapax[self.db.get_author(a)["id"]] = set(author_h)
 
 
     def compute_features(self, author):
         def get_author_titles(author_corpus):
-            author_titles = \
-                [i.split('\n',1)[0].strip().lower() for i in author_corpus]
+            author_titles = {}
+            for i in author_corpus:
+                author_titles[i.strip().split('\n',1)[0].lower()] = i
             return author_titles
+        
+        def uniqueness(title, document, _id):
+            if not title in self.titles:
+                words =  [x.lower() \
+                            for x in self.tokenizer.tokenize(document)]
+                words = Counter(words)
+                words = set([i for i in words if words[i] == 1])
+            else:
+                words = self.titles[title]
+
+            return len(self.author_hapax[_id].intersection(words)),\
+                             len(words.difference(self.words))
+
             
         # Bag-of-Words
         author_titles = get_author_titles(author["corpus"])
-        _max = -1
-        _min = float('inf')
-        _avg = 0
+        uwf_max, hapax_max = -1, -1
+        uwf_min, hapax_min = float('inf'), float('inf')
+        uwf_avg, hapax_avg = 0, 0
         for i in author_titles:
-            print self.titles
-            num_hapax = self.titles[i]
-            if num_hapax > _max:
-                _max = num_hapax
-            if num_hapax < _min:
-                _min = num_hapax 
-            _avg += num_hapax
-        _avg = _avg/float(len(author_titles))
+            uwf, hp = uniqueness(i, author_titles[i], author["id"])
+            uwf_max, hapax_max = max(uwf_max, uwf), max(hapax_max, hp)
+            uwf_min, hapax_min = min(uwf_min, uwf), min(hapax_min, hp)
+            uwf_avg += uwf
+            hapax_avg += hp
+
+        uwf_avg = uwf_avg/float(len(author_titles))
+        hapax_avg = hapax_avg/float(len(author_titles))
         # print "avg: ", _avg, "      max: ", _max, "      min: ", _min
         # author_hapax = len(self.words.intersection(author_words))
         
+        
         author = self.db.set_feature(author, 
-                    "style::single_unique_language_tokens_max", _max)
+                    "style::single_unique_language_document_tokens_max", hapax_max)
         author = self.db.set_feature(author, 
-                    "style::single_unique_language_tokens_min", _min)
+                    "style::single_unique_language_document_tokens_min", hapax_min)
         author = self.db.set_feature(author, 
-                    "style::single_unique_language_tokens_avg", _avg)
+                    "style::single_unique_language_document_tokens_avg", hapax_avg)
+        author = self.db.set_feature(author, 
+                    "style::single_unique_language_tokens_repetition_max",uwf_max)
+        author = self.db.set_feature(author,                              
+                    "style::single_unique_language_tokens_repetition_min", uwf_min)
+        author = self.db.set_feature(author, 
+                    "style::single_unique_language_tokens_repetition_avg", uwf_avg)
         
         return author
         
