@@ -113,5 +113,15 @@ for ln in args.language:
     print
 
     if args.train_model[0]:
+
+        #random.shuffle(authors)
+        gt = db.get_ground_truth(ln)
+        pos = [a for a in authors if gt[a] == 1.0]
+        neg = [a for a in authors if gt[a] == 0.0]
+
+        tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
+        ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
+
         w_clf = weighted_distance_classifier(args.config, ln)
-        w_clf.train(authors)
+        w_clf.train(tr)
+        print w_clf.accuracy(ts)

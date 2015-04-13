@@ -51,13 +51,14 @@ class classifier:
 
         return np.asarray(samples)
 
+
 class weighted_distance_classifier(classifier):
     def __init__(self, config, language):
         classifier.__init__(self, config, language)
         self.weights = {}
         self.threshold = 0.0
 
-    def normal_p(mu, sigma, x):
+    def normal_p(self, mu, sigma, x):
         diff_x_mu = x - mu
         sigma2 = sigma * sigma
 
@@ -70,14 +71,16 @@ class weighted_distance_classifier(classifier):
         return np.exp(- diff_x_mu * diff_x_mu / (2 * sigma2)) / \
                math.sqrt(2.0 * np.pi * sigma2)
 
-    def distance(self, weights, a, b):
-        return math.sqrt(sum([w * (x - y) * (x - y) \
-                                for (w, x, y) in zip(weights, a, b)]))
+    def distance(self, weights, descriptor, unknown):
+        return sum([w * (abs(x - d) ** 2 + 1) / (abs(x - m) ** 2 + 1) \
+                            for (w, m, d, x) in zip(weights, self.mean,
+                                                    descriptor, unknown)])
 
     def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
         
+        self.scaler = None
         self.scaler = MinMaxScaler()
         self.scaler.fit(samples)
 
@@ -110,6 +113,7 @@ class weighted_distance_classifier(classifier):
                 unknown_descriptor = self.scaler.transform(unknown_descriptor)
             if self.pca:
                 unknown_descriptor = self.pca.transform(unknown_descriptor)
+
             unknown_descriptor = unknown_descriptor[0]
 
             target = gt[author]
@@ -134,9 +138,11 @@ class weighted_distance_classifier(classifier):
             if next_accuracy >= best_accuracy:
                 best_accuracy = next_accuracy
                 best_threshold = i
+
         self.threshold = values[best_threshold][0]
-        print best_threshold, self.threshold, \
-              best_accuracy * 100.0 / len(values)
+
+        #print best_threshold, self.threshold, \
+              #best_accuracy * 100.0 / len(values)
 
     def predict(self, author_id):
         author = self.db.get_author(author_id, reduced=True)
@@ -148,6 +154,7 @@ class weighted_distance_classifier(classifier):
                 descriptor = self.scaler.transform(descriptor)
             if self.pca:
                 descriptor = self.pca.transform(descriptor)
+
             descriptor = descriptor[0]
 
             self.train_weights(author_id, descriptor)
@@ -158,8 +165,9 @@ class weighted_distance_classifier(classifier):
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
             unknown_descriptor = self.pca.transform(unknown_descriptor)
+
         unknown_descriptor = unknown_descriptor[0]
-        
+
         if self.distance(self.weights[author_id],
                          descriptor, unknown_descriptor) < self.threshold:
             return 1.0
@@ -173,7 +181,11 @@ class weighted_distance_classifier(classifier):
                         for (d, mu, sigma) in zip(descriptor,
                                                   self.mean, self.std)]
 
-        self.weights[author] = [abs(d - mu) / (2.0 * s + 1e-7) + 1.0 \
-                                    for (d, s) in zip(bounded_d, self.std)]
+        #self.weights[author] = [abs(d - m) ** 2 / (2 * s + 1e-7) + 1.0\
+                                    #for (d, m, s) in zip(bounded_d,
+                                                      #self.mean, self.std)]
+        self.weights[author] = [2.0 - self.normal_p(m, s, d)\
+                                    for (d, m, s) in zip(bounded_d,
+                                                         self.mean, self.std)]
         total_w = sum(self.weights[author])
         self.weights[author] = [x / total_w for x in self.weights[author]]
