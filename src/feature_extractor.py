@@ -479,11 +479,22 @@ class punctuation_ngrams_fe(feature_extractor):
 
 
     def compute_features(self, author):
-        corpus = utils.flatten(author["corpus"])
-        freq = self.ngram_vectorizer.transform(corpus)
+        freq = self.ngram_vectorizer.transform(author["corpus"])
         freq = freq.toarray().astype(int)
-        # return normalized ngram frequencies
-        return self.transformer.fit_transform(freq).toarray()
+        # normalized ngram frequencies
+        norm_freq = self.transformer.fit_transform(freq).toarray()
+        # average normalized frequencies among all author documents
+        norm_freq = np.divide(np.sum(norm_freq, axis=0),
+                                 len(norm_freq))
+
+        ngrams = self.ngram_vectorizer.get_feature_names()
+        for id_ngram, (ngram, value) in enumerate(zip(ngrams, norm_freq)):
+            author = self.db.set_feature(author,
+                                         "Ngram::punct::" + ngram,
+                                         value)
+
+        return author
+
 
 
 
