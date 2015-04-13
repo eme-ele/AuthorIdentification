@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
-import cPickle as pickle
+import pickle
 import numpy as np
 
 import tempfile
@@ -146,15 +146,15 @@ class db_layer:
         if not os.path.exists(os.path.dirname(fe_path)):
             os.makedirs(os.path.dirname(fe_path))
 
-        f = open(fe_path, 'w')
-        pickle.dump(fe, f)
+        f = open(fe_path, 'wb')
+        pickle.dump(fe, f, pickle.HIGHEST_PROTOCOL)
         f.close()
+
 
     def get_feature_extractor(self, language):
         fe_path = self.feature_extractor_path(language)        
         f = open(fe_path, 'rb')
         ret = pickle.load(f)
-            
         f.close()
         
         return ret

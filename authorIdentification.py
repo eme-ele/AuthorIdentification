@@ -59,6 +59,8 @@ if type(args.o) != str:
 if type(args.language) == str:
     args.language = [args.language]
 
+print args.language
+
 if args.i != '':
     clear(args.language , args.o, bool(args.cleardataset[0]))    
     import_languages(config, args.language , args.i, args.o)
@@ -96,9 +98,10 @@ for ln in args.language:
     if args.train[0]:
         print "Training features..."
         fe.train(authors)
-        db.store_feature_extractor(fe, ln)
+        # db.store_feature_extractor(fe, ln)
     else:
-        fe = db.get_feature_extractor(ln)
+        # fe = db.get_feature_extractor(ln)
+        pass
 
     if args.compute[0]:
         print "Computing features..."
@@ -113,5 +116,6 @@ for ln in args.language:
     print
 
     if args.train_model[0]:
-        w_clf = weighted_distance_classifier(args.config, ln)
+        w_clf = ubm(args.config, ln, fe)
         w_clf.train(authors)
+        w_clf.predict(authors)
