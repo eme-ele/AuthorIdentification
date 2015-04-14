@@ -131,4 +131,8 @@ for ln in args.language:
         #Debug true lo hace con data sintetica y muestra grafica
         #w_clf.train(tr, 10,  30, debug=False)
         w_clf.train(tr)
-        print w_clf.accuracy(ts)
+        print "Acc: %0.4f" % w_clf.accuracy(ts)
+        print "AUC: %0.4f" % w_clf.auc(ts)
+        print "c@1: %0.4f" % w_clf.c_at_one(ts)
+        print
+        print

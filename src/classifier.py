@@ -43,16 +43,36 @@ class classifier:
         gt = self.db.get_ground_truth(self.language)
 
         for author in authors:
-            if self.predict(author) == gt[author]:
+            if (self.predict(author) >= 0.5) == (gt[author] >= 0.5):
                 ret += 1.0
 
         return ret * 100.0 / len(authors)
 
     def auc(self, authors):
-        return 0.0  # TODO
+        probabilities = []
+        targets = []
+        
+        gt = self.db.get_ground_truth(self.language)
+
+        for author in authors:
+            probabilities.append(self.predict(author))
+            targets.append(gt[author])
+
+        return roc_auc_score(targets, probabilities)
     
     def c_at_one(self, authors):
-        return 0.0  # TODO
+        n = float(len(authors))
+        nc = 0
+        nu = 0
+        gt = self.db.get_ground_truth(self.language)
+
+        for author in authors:
+            if self.predict(author) == 0.5:
+                nu += 1
+            elif (self.predict(author) >= 0.5) == (gt[author] >= 0.5):
+                nc += 1.0
+
+        return (nc + (nu * nc / n)) / n
 
     def get_matrix(self, authors, known=True):
         self.feature_list = [a["features"].keys() for a in authors]
@@ -111,7 +131,6 @@ class weighted_distance_classifier(classifier):
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
         
-        print samples.shape
         distances = []
 
         gt = self.db.get_ground_truth(self.language)
@@ -214,17 +233,19 @@ class rf_classifier(classifier):
         self.language = language
         self.feature_list = []
         self.fe = self.db.get_feature_extractor(language)
+        self.rf_criterion = self.config["rf"][self.language]["criterion"]
+        self.rf_num_estimators = self.config["rf"][self.language]["estimators"]
 
     def get_composed_descriptor(self, known_descriptor, unknown_descriptor):
         return [((x - d) ** 2 + 1) / ((x - m) ** 2 + 1) \
                 for (m, d, x) in zip(self.mean,
                                      known_descriptor, unknown_descriptor)]
-                        
+
     def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
         self.scaler = None
-        
+
         self.pca = None
         #self.pca = PCA(n_components=100)
         #self.pca.fit(samples)
@@ -237,7 +258,6 @@ class rf_classifier(classifier):
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
 
-        print samples.shape
         gt = self.db.get_ground_truth(self.language)
 
         new_samples = []
@@ -261,11 +281,10 @@ class rf_classifier(classifier):
             
         new_samples = np.asarray(new_samples)
         new_targets = np.asarray(new_targets)
-        self.rf = RandomForestClassifier(n_estimators=200, criterion='gini')
+        self.rf = RandomForestClassifier(n_estimators=self.rf_num_estimators,
+                                         criterion=self.rf_criterion,
+                                         n_jobs=-1)
         self.rf.fit(new_samples, new_targets)
-
-        #print best_threshold, self.threshold, \
-              #best_accuracy * 100.0 / len(values)
         
     def predict(self, author_id):
         author = self.db.get_author(author_id, reduced=True)
@@ -287,11 +306,9 @@ class rf_classifier(classifier):
 
         unknown_descriptor = unknown_descriptor[0]
         
-        if self.rf.predict(self.get_composed_descriptor(descriptor,
-                                                        unknown_descriptor)):
-            return 1.0
-        else:
-            return 0.0
+        composed = self.get_composed_descriptor(descriptor, unknown_descriptor)
+
+        return self.rf.predict_proba(composed)[0][1]
 
 
 class ubm(classifier):
