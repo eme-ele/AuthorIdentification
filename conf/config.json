@@ -21,5 +21,24 @@
         "style::single_unique_language_tokens_min",
         "style::single_unique_language_tokens_avg"
     ],
-    "pickle": "conf/pickle"
+    "pickle": "conf/pickle",
+    "rf":
+    {
+        "EN":{
+           "criterion": "gini",
+           "estimators": 400
+        },
+        "DU":{
+           "criterion": "entropy",
+           "estimators": 400
+        },
+        "GR":{
+            "criterion": "gini",
+           "estimators": 400
+        },
+        "SP":{
+            "criterion": "gini",
+           "estimators": 400
+        }
+    }
 }

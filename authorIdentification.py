@@ -128,11 +128,17 @@ for ln in args.language:
         ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
 
         w_clf = rf_classifier(args.config, ln)
+        models = [
+                  #("Weights", weighted_distance_classifier(args.config, ln)),
+                  ("RF", rf_classifier(args.config, ln))
+                 ]
         #Debug true lo hace con data sintetica y muestra grafica
         #w_clf.train(tr, 10,  30, debug=False)
-        w_clf.train(tr)
-        print "Acc: %0.4f" % w_clf.accuracy(ts)
-        print "AUC: %0.4f" % w_clf.auc(ts)
-        print "c@1: %0.4f" % w_clf.c_at_one(ts)
-        print
+        for name, model in models:
+            model.train(tr)
+            print name
+            print "Acc: %0.4f" % model.accuracy(ts)
+            print "AUC: %0.4f" % model.auc(ts)
+            print "c@1: %0.4f" % model.c_at_one(ts)
+            print
         print

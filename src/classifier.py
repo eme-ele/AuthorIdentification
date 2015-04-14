@@ -181,16 +181,16 @@ class weighted_distance_classifier(classifier):
     def predict(self, author_id):
         author = self.db.get_author(author_id, reduced=True)
 
+        descriptor = self.get_matrix([author], True)
+        
+        if self.scaler:
+            descriptor = self.scaler.transform(descriptor)
+        if self.pca:
+            descriptor = self.pca.transform(descriptor)
+
+        descriptor = descriptor[0]
+        
         if self.weights.get(author_id) is None:
-            descriptor = self.get_matrix([author], True)
-            
-            if self.scaler:
-                descriptor = self.scaler.transform(descriptor)
-            if self.pca:
-                descriptor = self.pca.transform(descriptor)
-
-            descriptor = descriptor[0]
-
             self.train_weights(author_id, descriptor)
 
         unknown_descriptor = self.get_matrix([author], False)
