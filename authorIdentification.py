@@ -72,7 +72,7 @@ for ln in args.language:
     fe = concat_fe(args.config,
                    [
                        clear_fe(args.config),
-                       # pos_fe(args.config),
+                       pos_fe(args.config),
                        hapax_fe(args.config),
                        word_distribution_fe(args.config),
                        num_tokens_fe(args.config),
@@ -104,7 +104,7 @@ for ln in args.language:
         fe.train(authors)
         # db.store_feature_extractor(fe, ln)
     else:
-        # fe = db.get_feature_extractor(ln)
+        fe = db.get_feature_extractor(ln)
         pass
 
     if args.compute[0]:
@@ -128,29 +128,31 @@ for ln in args.language:
         rate = 0.7
         tr = pos[: int(rate * len(pos))] + neg[: int(rate * len(neg))]
         ts = pos[int(rate * len(pos)):] + neg[int(rate * len(neg)):]
-        for pca in [5, 10, 20, 40, 80]:
-            print 'pca: ', pca
-            for r in [1, 2, 4, 8, 16, 32]:
-                print '  r: ', r
-                # w_clf = rf_classifier(args.config, ln)
-                models = [
-                          #("Weights", weighted_distance_classifier(args.config, ln)),
-                          # ("adj-RF", adjustment_classifier(args.config, ln,
-                          #                                  rf_classifier(args.config,
-                          #                                                ln))),
-                          # ("    RF", rf_classifier(args.config, ln)),
-                          ("\t\t    UBM", ubm(args.config, ln, fe,  n_pca=pca, \
-                                             n_gaussians=3, r=r, normals_type='diag')),
-                         ]
-                #Debug true lo hace con data sintetica y muestra grafica
-                #w_clf.train(tr, 10,  30, debug=False)
-                for name, model in models:
-                    model.train(tr)
-                    print name
-                    metrics = model.metrics(ts)
-                    print "\t\tAcc: %0.4f" % metrics[0]
-                    print "\t\tAUC: %0.4f" % metrics[1]
-                    print "\t\tc@1: %0.4f" % metrics[2]
-                    # print
-                # print "\t\t==="
-                print
+
+        w_clf = rf_classifier(args.config, ln)
+        models = [
+                  #("Weights", weighted_distance_classifier(args.config, ln)),
+                  ("reject-RF", reject_classifier(args.config, ln,
+                                                  rf_classifier(args.config,
+                                                                ln))),
+                  ("adj-RF",  adjustment_classifier(args.config, ln,
+                                                    rf_classifier(args.config,
+                                                    ln))),
+                  ("rej-adj-RF", 
+                   adjustment_classifier(args.config, ln,
+                                         reject_classifier(args.config, ln,
+                                                   rf_classifier(args.config,
+                                                   ln)))),
+                  ("RF", rf_classifier(args.config, ln)),
+                  ("UBM", ubm(args.config, ln, fe,  n_pca=10, \
+                                     n_gaussians=2, r=8, normals_type='diag')),
+                 ]
+
+        model = model_selector(args.config, ln, [x[1] for x in models])
+        model.train(tr)
+        metrics = model.metrics(ts)
+        print "Acc: %0.4f" % metrics[0]
+        print "AUC: %0.4f" % metrics[1]
+        print "c@1: %0.4f" % metrics[2]
+        print "Ranking: %0.4f" % (metrics[1] * metrics[2])
+        print 

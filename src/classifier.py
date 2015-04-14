@@ -615,7 +615,7 @@ class adjustment_classifier(classifier):
         self.db = db_layer(config)
         self.language = language
         
-        self.prob_degree = 5
+        self.prob_degree = 3
         self.rate = 0.8
 
         self.classifier = classifier
@@ -656,3 +656,134 @@ class adjustment_classifier(classifier):
             return max(0.0, min(1.0, adjusted_prob))
         else:
             return prob
+
+class reject_classifier(classifier):
+    def __init__(self, config, language, classifier):
+        self.config_file = config
+        self.config = utils.get_configuration(config)
+        self.db = db_layer(config)
+        self.language = language
+
+        self.left_threshold = 0.5
+        self.right_threshold = 0.5
+        
+        self.classifier = classifier
+        self.rate = 0.8
+
+    def train(self, authors_id):
+        def map_value(x):
+            if x < self.left_threshold:
+                return x
+            elif x < self.right_threshold:
+                return 0.5
+            else:
+                return x
+
+        def c_at_one_aux(pt):
+            n = float(len(pt))
+            nc = 0
+            nu = 0
+            
+            for p, t in pt:
+                if map_value(p) == 0.5:
+                    nu += 1
+                elif (map_value(p) >= 0.5) == (t >= 0.5):
+                    nc += 1.0
+
+            return (nc + (nu * nc / n)) / n
+    
+        authors = [self.db.get_author(a, True) for a in authors_id]
+        gt = self.db.get_ground_truth(self.language)
+
+        pos = [a for a in authors_id if gt[a] == 1.0]
+        neg = [a for a in authors_id if gt[a] == 0.0]
+
+        tr = pos[: int(self.rate * len(pos))] + \
+             neg[: int(self.rate * len(neg))]
+        ts = pos[int(self.rate * len(pos)):] + neg[int(self.rate * len(neg)):]
+
+        self.classifier.train(tr)
+
+        # Fit a linear model to adjust the probabilities
+        probs = [(self.classifier.predict(a), gt[a]) for a in ts] + \
+                [(0.5, 0.5)]
+        probs = list(set(probs))
+        probs.sort()
+
+        best_left = 0.5
+        best_right = 0.5
+        best_c_at_1 = 0.0
+
+        for i in range(len(ts)):
+            for j in range(i, len(ts)):
+                self.left_threshold = probs[i][0]
+                self.right_threshold = probs[j][0]
+
+                if self.left_threshold > 0.5 or \
+                        self.right_threshold < 0.5:
+                    break
+
+                next_c_at_1 = c_at_one_aux(probs)
+                
+                if next_c_at_1 > best_c_at_1:
+                    best_left = self.left_threshold
+                    best_right = self.right_threshold
+                    best_c_at_1 = next_c_at_1
+
+        self.left_threshold = best_left
+        self.right_threshold = best_right
+        
+        self.classifier.train(authors_id)
+
+    def expand_prob(self, p, degree):
+        return [p ** d for d in range(degree)]
+
+    def predict(self, author_id):
+        prob = self.classifier.predict(author_id)
+        if prob < self.left_threshold:
+            return prob
+        elif prob <= self.right_threshold:
+            return 0.5
+        else:
+            return prob
+
+
+class model_selector(classifier):
+    def __init__(self, config, language, classifier_list):
+        self.config_file = config
+        self.config = utils.get_configuration(config)
+        self.db = db_layer(config)
+        self.language = language
+
+        self.classifier = classifier
+        self.classifier_list = list(classifier_list)
+        self.rate = 0.8
+
+    def train(self, authors_id):    
+        authors = [self.db.get_author(a, True) for a in authors_id]
+        gt = self.db.get_ground_truth(self.language)
+
+        pos = [a for a in authors_id if gt[a] == 1.0]
+        neg = [a for a in authors_id if gt[a] == 0.0]
+
+        tr = pos[: int(self.rate * len(pos))] + \
+             neg[: int(self.rate * len(neg))]
+        ts = pos[int(self.rate * len(pos)):] + neg[int(self.rate * len(neg)):]
+
+        
+        rankings = []
+
+        for i, clf in enumerate(self.classifier_list):
+            clf.train(tr)
+            _, auc, catone = clf.metrics(ts)
+            rankings.append((catone * auc, i))
+            print i, auc, catone, auc * catone
+
+        rankings.sort()
+
+        print "best model", rankings[-1]
+        self.classifier = self.classifier_list[rankings[-1][1]]
+        self.classifier.train(authors_id)
+
+    def predict(self, author_id):
+        return self.classifier.predict(author_id)
