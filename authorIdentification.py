@@ -72,14 +72,17 @@ for ln in args.language:
     fe = concat_fe(args.config,
                    [
                        clear_fe(args.config),
-                       # pos_fe(args.config),
-                       # hapax_fe(args.config),
+                       pos_fe(args.config),
+                       hapax_fe(args.config),
                        word_distribution_fe(args.config),
                        num_tokens_fe(args.config),
                        stop_words_fe(args.config),
                        punctuation_fe(args.config),
                        structure_fe(args.config),
-                       char_distribution_fe(args.config)
+                       char_distribution_fe(args.config),
+                       #spacing_fe(args.config),
+                       #punctuation_ngrams_fe(args.config),
+                       #stopword_topics_fe(args.config)
                    ])
 
     print "Language:", ln
@@ -100,7 +103,7 @@ for ln in args.language:
         fe.train(authors)
         # db.store_feature_extractor(fe, ln)
     else:
-        # fe = db.get_feature_extractor(ln)
+        fe = db.get_feature_extractor(ln)
         pass
 
     if args.compute[0]:
@@ -124,7 +127,8 @@ for ln in args.language:
         tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
         ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
 
-        w_clf = ubm(args.config, ln, fe)
+        w_clf = rf_classifier(args.config, ln)
         #Debug true lo hace con data sintetica y muestra grafica
-        w_clf.train(tr, 10 ,  30 ,debug=False)
+        #w_clf.train(tr, 10,  30, debug=False)
+        w_clf.train(tr)
         print w_clf.accuracy(ts)

@@ -1,6 +1,8 @@
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.mixture import GMM, DPGMM
+from sklearn.metrics import *
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -202,10 +204,94 @@ class weighted_distance_classifier(classifier):
                                                          self.mean, self.std)]
         total_w = sum(self.weights[author])
         self.weights[author] = [x / total_w for x in self.weights[author]]
-        
-        
-        
 
+
+class rf_classifier(classifier):
+    def __init__(self, config, language):
+        self.config_file = config
+        self.config = utils.get_configuration(config)
+        self.db = db_layer(config)
+        self.language = language
+        self.feature_list = []
+        self.fe = self.db.get_feature_extractor(language)
+
+    def get_composed_descriptor(self, known_descriptor, unknown_descriptor):
+        return [((x - d) ** 2 + 1) / ((x - m) ** 2 + 1) \
+                for (m, d, x) in zip(self.mean,
+                                     known_descriptor, unknown_descriptor)]
+                        
+    def train(self, authors_id):
+        authors = [self.db.get_author(a, True) for a in authors_id]
+        samples = self.get_matrix(authors)
+        self.scaler = None
+        
+        self.pca = None
+        #self.pca = PCA(n_components=100)
+        #self.pca.fit(samples)
+
+        if self.scaler:
+            samples = self.scaler.transform(samples)
+        if self.pca:
+            samples = self.pca.transform(samples)
+
+        self.mean = np.mean(samples, axis=0)
+        self.std = np.std(samples, axis=0)
+
+        print samples.shape
+        gt = self.db.get_ground_truth(self.language)
+
+        new_samples = []
+        new_targets = []
+
+        for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
+            unknown = self.db.get_unknown_document(author)
+            unknown_descriptor = self.get_matrix([authors[id_]], False)
+        
+            if self.scaler:
+                unknown_descriptor = self.scaler.transform(unknown_descriptor)
+            if self.pca:
+                unknown_descriptor = self.pca.transform(unknown_descriptor)
+
+            unknown_descriptor = unknown_descriptor[0]
+            target = gt[author]
+            
+            new_samples.append(self.get_composed_descriptor(descriptor,
+                                                        unknown_descriptor))
+            new_targets.append(target)
+            
+        new_samples = np.asarray(new_samples)
+        new_targets = np.asarray(new_targets)
+        self.rf = RandomForestClassifier(n_estimators=200, criterion='gini')
+        self.rf.fit(new_samples, new_targets)
+
+        #print best_threshold, self.threshold, \
+              #best_accuracy * 100.0 / len(values)
+        
+    def predict(self, author_id):
+        author = self.db.get_author(author_id, reduced=True)
+        descriptor = self.get_matrix([author], True)
+            
+        if self.scaler:
+            descriptor = self.scaler.transform(descriptor)
+        if self.pca:
+            descriptor = self.pca.transform(descriptor)
+
+        descriptor = descriptor[0]
+
+        unknown_descriptor = self.get_matrix([author], False)
+        
+        if self.scaler:
+            unknown_descriptor = self.scaler.transform(unknown_descriptor)
+        if self.pca:
+            unknown_descriptor = self.pca.transform(unknown_descriptor)
+
+        unknown_descriptor = unknown_descriptor[0]
+        
+        if self.rf.predict(self.get_composed_descriptor(descriptor,
+                                                        unknown_descriptor)):
+            return 1.0
+        else:
+            return 0.0
 
 
 class ubm(classifier):
@@ -234,14 +320,14 @@ class ubm(classifier):
     # x is a vector of samples
     def em(self, weights, means, covars,  samples, r):
         # print '\nAdaptation'
-        for i in range(0,1):
+        for i in range(0, 1):
             pr = np.array(
                 [
-                    weights[i]*self.mvnpdf(means[i],covars[i],samples) + 0.1**7 \
+                    weights[i]*self.mvnpdf(means[i],covars[i],samples) + 1e-7 \
                         for i in range(0,len(means))
                 ]
             ).T
-            
+
             # print '\nSamples: ', samples
             # print '\nPr: ', pr
             
@@ -392,7 +478,6 @@ class ubm(classifier):
         
         self.components=n_gaussians
         n_classes = len(np.unique(gt.values()))    
-        
         self.tp = 'diag'
         self.bg_classifier = GMM(n_components=self.components, covariance_type=self.tp)
                            #'spherical', 'diag', 'tied', 'full'])
@@ -412,11 +497,15 @@ class ubm(classifier):
 
             target = gt[author]
             
-            agm = GMM(n_components=self.components,covariance_type=self.tp)
+            agm = GMM(n_components=self.components, covariance_type=self.tp)
             agm.weights_, agm.means_, agm.covars_ = \
-                    self.em(ws, ms, cvs,  [descriptor], 16)
+                    self.em(ws, ms, cvs, [descriptor], 16)
+
+            print self.components
+            print ud.shape
             
             values.append((agm.score(ud)/self.bg_classifier.score(ud),target))
+            print "aca"
 
         values.sort()
         best_threshold = 0

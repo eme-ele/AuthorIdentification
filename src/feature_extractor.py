@@ -905,14 +905,14 @@ class word_topics_fe(feature_extractor):
 
 
 class stopword_topics_fe(feature_extractor):
-    def __init__():
+    def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
             try:
                 mapped_lang = self.config["languages"][lang]
                 return stop_words.get_stop_words(mapped_lang)
             except:
                 return []
-        super(word_topics_fe, self).__init__(config_file)
+        super(stopword_topics_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
         self.stopwords = {ln: get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
@@ -936,7 +936,7 @@ class stopword_topics_fe(feature_extractor):
     def compute_features(self, author):
         topics = [0.0]*self.k
         for document in author["corpus"]:
-            lang = db.get_author_language(author)
+            lang = self.db.get_author_language(author)
             document = self.tokenizer.tokenize(document)
             document = filter(lambda x: x in self.stopwords[lang], document)
             topics = map(add, topics, self.model[self.dictionary.doc2bow(document)])
