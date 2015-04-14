@@ -224,12 +224,16 @@ class ubm(classifier):
         multivariate_normal.pdf(samples, mean=mean, cov=covar)
         return multivariate_normal.pdf(samples, mean=mean, cov=covar) #allow_singular=True
 
-    def alfa(self, n, r):
+    def alfa(self, n, r, rho=''):
+        if rho == 'w':
+            r = 10
+        else:
+            r = 16
         return n/(n+r)
         
     # x is a vector of samples
     def em(self, weights, means, covars,  samples, r):
-        
+        # print '\nAdaptation'
         for i in range(0,1):
             pr = np.array(
                 [
@@ -237,22 +241,29 @@ class ubm(classifier):
                         for i in range(0,len(means))
                 ]
             ).T
-        
+            
+            # print '\nSamples: ', samples
+            # print '\nPr: ', pr
+            
             if len(samples) == 1:
                 pr = np.array([pr])
             
-            # print map(sum, pr)
-            pr = np.array([p/s \
-                            for (p, s) in zip(pr,map(sum, pr))]).T
-            # print map(sum,pr.T)
+            # print '\nNormalizing Factor: ',map(sum, pr)
+            pr = np.array([p/s for (p, s) in zip(pr,map(sum, pr))]).T
+            
             ns = map(sum, pr)
-        
-            # print pr
-            # print samples
+            # print '\nNs: ', ns
+            
+            # print '\nNormalized -Prs*Samples: ', pr, '*', samples, '/', ns
+            
             new_means = [sum([p*s for p,s in zip(ps,samples)])/ns[i] \
                                 for i, ps in enumerate(pr)]
+            # print '\nNew Means: ',new_means
+
             new_covars = [sum([p*(s**2) for p,s in zip(ps,samples)])/ns[i] \
                                 for i, ps in enumerate(pr)]
+            # print '\nNew Covars: ',new_covars
+            
             alfas = [self.alfa(n, r) for n in ns]
             # Bayesian adaptation
             t = len(samples)
@@ -260,9 +271,13 @@ class ubm(classifier):
                             for a, n, w in zip(alfas, ns, weights)]
             adapted_weights = adapted_weights/sum(adapted_weights)
         
+            alfas = [self.alfa(n, r,'w') for n in ns]
+            
             adapted_means = [a*nm + (1-a)*m \
                             for a, nm, m in zip(alfas, new_means, means)]
             adapted_means = np.array(adapted_means)
+            
+            alfas = [self.alfa(n, r) for n in ns]
         
             adapted_covars = [a*nc + ((1-a)*(c+m**2) - am**2) for a, nc, c, am, m \
                                 in zip(alfas, new_covars, covars, adapted_means, means)]
@@ -290,7 +305,7 @@ class ubm(classifier):
         # print adapted_covars
         return adapted_weights, adapted_means, adapted_covars
         
-    def train(self, authors_id):
+    def train(self, authors_id, n_pca, n_gaussians, debug=False):
         def plot_test():
             # Number of samples per component
             n_samples = 70
@@ -308,7 +323,7 @@ class ubm(classifier):
     
             agm = GMM(n_components=2, covariance_type='full')
             agm.weights_, agm.means_, agm.covars_ = \
-                    self.em(gmm.weights_, gmm.means_, gmm.covars_,  [X[len(X)-1]], 10)
+                    self.em(gmm.weights_, gmm.means_, gmm.covars_,  [X[len(X)-1]], 1)
     
             # Fit a Dirichlet process mixture of Gaussians using five components
             dpgmm = DPGMM(n_components=2, covariance_type='full')
@@ -348,32 +363,18 @@ class ubm(classifier):
             plt.show()
             exit(-1)
 
-        #Comentar aqui para funcionamiento normal
-        test = True
-        if test:
+        #Cambiar a False para funcionamiento normal
+        if debug:
             plot_test()
                     
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
         
-        n_samples = 500
-
-        # Generate random sample, two components
-        fig = plt.figure()
-        np.random.seed(0)
-        C = np.array([[0., -0.1], [1.7, .4]])
-        X = np.r_[np.dot(np.random.randn(n_samples, 2), C),
-                  .7 * np.random.randn(n_samples, 2) + np.array([-6, 3])]
-                  
-        print x
-        print multivariate_normal.pdf(x, mean=mean, cov=covar)
-        exit(-1)
-        
         self.scaler = MinMaxScaler()
         self.scaler.fit(samples)
 
         self.pca = None
-        self.pca = PCA(n_components=40)
+        self.pca = PCA(n_components=n_pca)
         self.pca.fit(samples)
 
         if self.scaler:
@@ -389,41 +390,20 @@ class ubm(classifier):
 
         gt = self.db.get_ground_truth(self.language)
         
-        components=len(authors_id)/2
+        self.components=n_gaussians
         n_classes = len(np.unique(gt.values()))    
         
-        classifiers = dict((covar_type, GMM(n_components=components,
-                            covariance_type=covar_type))
-                           for covar_type in ['diag']) 
+        self.tp = 'diag'
+        self.bg_classifier = GMM(n_components=self.components, covariance_type=self.tp)
                            #'spherical', 'diag', 'tied', 'full'])
-                           
-        n_classifiers = len(classifiers)
-
-        for index, (name, classifier) in enumerate(classifiers.items()):            
-            classifier.fit(samples)
-            
-        
-        tp = 'diag'
-        self.c = classifiers[tp]
-
-        gms = []
-        for i in samples:
-            # print 'Sample'
-            # print i
-            # print 'Adaptation'
-            agm = GMM(n_components=components,covariance_type=tp)
-            agm.weights_, agm.means_, agm.covars_ = \
-                    self.em(self.c.weights_, self.c.means_, self.c.covars_,  [i], 16)
-            gms.append(agm)
-            a, b = self.c.score(i), agm.score(i)
-            # print a<b, a,' < ', b
-        
+        self.bg_classifier.fit(samples)                   
+        ws = self.bg_classifier.weights_
+        ms = self.bg_classifier.means_
+        cvs = self.bg_classifier.covars_        
         values = []              
-        for id_, (author, descriptor, gm) in enumerate(zip(authors_id, samples, gms)):
-
+        for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
             unknown = self.db.get_unknown_document(author)
             unknown_descriptor = self.get_matrix([authors[id_]], False)
-
             if self.scaler:
                 unknown_descriptor = self.scaler.transform(unknown_descriptor)
             if self.pca:
@@ -431,11 +411,14 @@ class ubm(classifier):
             ud = unknown_descriptor[0]
 
             target = gt[author]
-
-            values.append((agm.score(ud)/self.c.score(ud),target))
+            
+            agm = GMM(n_components=self.components,covariance_type=self.tp)
+            agm.weights_, agm.means_, agm.covars_ = \
+                    self.em(ws, ms, cvs,  [descriptor], 16)
+            
+            values.append((agm.score(ud)/self.bg_classifier.score(ud),target))
 
         values.sort()
-
         best_threshold = 0
         best_accuracy = len(filter(lambda (_, t): t < 0.5, values))
         next_accuracy = best_accuracy
@@ -462,22 +445,23 @@ class ubm(classifier):
         if self.pca:
             descriptor = self.pca.transform(descriptor)
         descriptor = descriptor[0]
-        
-        agm = GMM(n_components=len(self.c.means_),covariance_type='diag')
-        agm.weights_, agm.means_, agm.covars_ = \
-            self.em(self.c.weights_, self.c.means_, self.c.covars_, [descriptor], 16)
             
         unknown_descriptor = self.get_matrix([author], False)
-        
         if self.scaler:
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
             unknown_descriptor = self.pca.transform(unknown_descriptor)
         ud = unknown_descriptor[0]
         
-        a, b = self.c.score(unknown_descriptor), agm.score(unknown_descriptor)
+        ws = self.bg_classifier.weights_
+        ms = self.bg_classifier.means_
+        cvs = self.bg_classifier.covars_
         
-        if agm.score(ud)/self.c.score(ud) < self.threshold:
+        agm = GMM(n_components=self.components,covariance_type=self.tp)
+        agm.weights_, agm.means_, agm.covars_ = \
+                self.em(ws, ms, cvs,  [descriptor], 16)
+                
+        if agm.score(ud)/self.bg_classifier.score(ud) < self.threshold:
             return 1.0
         else:
             return 0.0
