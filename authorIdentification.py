@@ -81,8 +81,8 @@ for ln in args.language:
                        structure_fe(args.config),
                        char_distribution_fe(args.config),
                        spacing_fe(args.config),
-                       #punctuation_ngrams_fe(args.config),
-                       stopword_topics_fe(args.config),
+                       punctuation_ngrams_fe(args.config),
+                       # stopword_topics_fe(args.config),
                        word_topics_fe(args.config)
                    ])
 
@@ -138,26 +138,29 @@ for ln in args.language:
         rate = 0.7
         tr = pos[: int(rate * len(pos))] + neg[: int(rate * len(neg))]
         ts = pos[int(rate * len(pos)):] + neg[int(rate * len(neg)):]
-
-        # w_clf = rf_classifier(args.config, ln)
-        models = [
-                  #("Weights", weighted_distance_classifier(args.config, ln)),
-                  # ("adj-RF", adjustment_classifier(args.config, ln,
-                  #                                  rf_classifier(args.config,
-                  #                                                ln))),
-                  # ("    RF", rf_classifier(args.config, ln)),
-                  ("    UBM", ubm(args.config, ln, fe,  n_pca=5, n_gaussians=2, \
-                                     r=16, normals_type='diag')),
-                 ]
-        #Debug true lo hace con data sintetica y muestra grafica
-        #w_clf.train(tr, 10,  30, debug=False)
-        for name, model in models:
-            model.train(tr)
-            print name
-            metrics = model.metrics(ts)
-            print "Acc: %0.4f" % metrics[0]
-            print "AUC: %0.4f" % metrics[1]
-            print "c@1: %0.4f" % metrics[2]
-            print
-        print "==="
-        print
+        for pca in [5, 10, 20, 40, 80]:
+            print 'pca: ', pca
+            for r in [1, 2, 4, 8, 16, 32]:
+                print '  r: ', r
+                # w_clf = rf_classifier(args.config, ln)
+                models = [
+                          #("Weights", weighted_distance_classifier(args.config, ln)),
+                          # ("adj-RF", adjustment_classifier(args.config, ln,
+                          #                                  rf_classifier(args.config,
+                          #                                                ln))),
+                          # ("    RF", rf_classifier(args.config, ln)),
+                          ("\t\t    UBM", ubm(args.config, ln, fe,  n_pca=pca, \
+                                             n_gaussians=2, r=r, normals_type='diag')),
+                         ]
+                #Debug true lo hace con data sintetica y muestra grafica
+                #w_clf.train(tr, 10,  30, debug=False)
+                for name, model in models:
+                    model.train(tr)
+                    print name
+                    metrics = model.metrics(ts)
+                    print "\t\tAcc: %0.4f" % metrics[0]
+                    print "\t\tAUC: %0.4f" % metrics[1]
+                    print "\t\tc@1: %0.4f" % metrics[2]
+                    # print
+                # print "\t\t==="
+                print
