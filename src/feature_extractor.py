@@ -882,14 +882,16 @@ class word_topics_fe(feature_extractor):
             except:
                 return []
         super(word_topics_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.tokenizer = RegexpTokenizer(r'[\w\']+')
         self.stopwords = {ln: get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
         self.k = 10
 
     def train(self, authors):
         lang = self.db.get_author_language(authors[0])
+        print self.stopwords[lang]
         # transform corpus into a list of preprocessed documents
+        print authors
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
         documents = map(lambda x: self.tokenizer.tokenize(x), documents)
@@ -898,9 +900,11 @@ class word_topics_fe(feature_extractor):
                         for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
+        self.dictionary.filter_extremes(no_below=5, no_above=0.5)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
         self.model = models.LdaModel(documents, num_topics=self.k,
                                      id2word=self.dictionary, iterations=1000)
+
 
     def compute_features(self, author):
         topics = [0.0] * self.k
@@ -947,6 +951,7 @@ class stopword_topics_fe(feature_extractor):
                         for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
+        self.dictionary.filter_extremes(no_below=5, no_above=0.5)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
         self.model = models.LdaModel(documents, num_topics=self.k,
                                      id2word=self.dictionary, iterations=1000)

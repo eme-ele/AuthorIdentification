@@ -80,9 +80,10 @@ for ln in args.language:
                        punctuation_fe(args.config),
                        structure_fe(args.config),
                        char_distribution_fe(args.config),
-                       #spacing_fe(args.config),
+                       spacing_fe(args.config),
                        #punctuation_ngrams_fe(args.config),
-                       #stopword_topics_fe(args.config)
+                       stopword_topics_fe(args.config),
+                       word_topics_fe(args.config)
                    ])
 
     print "Language:", ln
