@@ -312,15 +312,27 @@ class punctuation_fe(feature_extractor):
 class spacing_fe(feature_extractor):
 
     def set_avg_min_max(self, author, name, elements):
-        author = self.db.set_feature(author,
-                                     "spacing_" + name + "_avg",
-                                     np.mean(elements))
-        author = self.db.set_feature(author,
-                                     "spacing_" + name + "_min",
-                                     np.min(elements))
-        author = self.db.set_feature(author,
-                                     "spacing_" + name + "_max",
-                                     np.max(elements))
+
+        if len(elements) > 0:
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_avg",
+                                         np.mean(elements))
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_min",
+                                         np.min(elements))
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_max",
+                                         np.max(elements))
+        else:
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_avg",
+                                         0.0)
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_min",
+                                         0.0)
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_max",
+                                         0.0)
         return author
 
     def compute_features(self, author):
