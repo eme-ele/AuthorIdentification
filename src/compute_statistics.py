@@ -111,10 +111,11 @@ def feature_histograms(args, config):
         areas = []
         for id_feature, feature in enumerate(features):
             values = [a["features"][feature] for a in authors]
-            xmax,xmin = max(values), min(values)
-            y, x = np.histogram(values, bins=np.linspace(xmin-1, xmax+1, (xmax-xmin)))
+            xmax, xmin = max(values), min(values)
+            y, x = np.histogram(values, bins=np.linspace(xmin - 1, xmax + 1,
+                                                         (xmax - xmin)))
             nbins = y.size
-            plt.hist(values,bins=nbins)
+            plt.hist(values, bins=nbins)
             plt.title(feature)
             save_image_or_show(os.path.join(config["results"],
                                             "histograms", ln),

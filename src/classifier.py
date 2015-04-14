@@ -1,6 +1,9 @@
 from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.mixture import GMM, DPGMM
+from sklearn.metrics import *
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -41,21 +44,67 @@ class classifier:
         gt = self.db.get_ground_truth(self.language)
 
         for author in authors:
-            if self.predict(author) == gt[author]:
+            if (self.predict(author) >= 0.5) == (gt[author] >= 0.5):
                 ret += 1.0
 
-        return ret * 100.0 / len(authors)
+        return ret / float(len(authors))
 
     def auc(self, authors):
-        return 0.0  # TODO
-    
+        probabilities = []
+        targets = []
+
+        gt = self.db.get_ground_truth(self.language)
+
+        for author in authors:
+            probabilities.append(self.predict(author))
+            targets.append(gt[author])
+
+        return roc_auc_score(targets, probabilities)
+
     def c_at_one(self, authors):
-        return 0.0  # TODO
+        n = float(len(authors))
+        nc = 0
+        nu = 0
+        gt = self.db.get_ground_truth(self.language)
+
+        for author in authors:
+            if self.predict(author) == 0.5:
+                nu += 1
+            elif (self.predict(author) >= 0.5) == (gt[author] >= 0.5):
+                nc += 1.0
+
+        return (nc + (nu * nc / n)) / n
+
+    def metrics(self, authors):
+        acc_ret = 0.0
+        gt = self.db.get_ground_truth(self.language)
+        probabilities = []
+        targets = []
+        n = float(len(authors))
+        nc = 0
+        nu = 0
+
+        for author in authors:
+            prediction = self.predict(author)
+            probabilities.append(prediction)
+            targets.append(gt[author])
+            
+            if (prediction >= 0.5) == (gt[author] >= 0.5):
+                acc_ret += 1.0
+            
+            if prediction == 0.5:
+                nu += 1
+            elif (prediction >= 0.5) == (gt[author] >= 0.5):
+                nc += 1.0
+
+        return acc_ret / float(len(authors)), \
+               roc_auc_score(targets, probabilities), \
+               (nc + (nu * nc / n)) / n
 
     def get_matrix(self, authors, known=True):
         self.feature_list = [a["features"].keys() for a in authors]
         self.feature_list = list(set([f for fts in self.feature_list \
-                                        for f in fts ]))
+                                        for f in fts]))
         self.feature_list.sort()
 
         samples = [[s["features" if known else "unknown_features"].get(f,
@@ -92,7 +141,7 @@ class weighted_distance_classifier(classifier):
     def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
-        
+
         self.scaler = None
         self.scaler = MinMaxScaler()
         self.scaler.fit(samples)
@@ -108,20 +157,19 @@ class weighted_distance_classifier(classifier):
 
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
-        
-        print samples.shape
+
         distances = []
 
         gt = self.db.get_ground_truth(self.language)
-        
+
         values = []
-        
+
         for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
             self.train_weights(author, descriptor)
-            
+
             unknown = self.db.get_unknown_document(author)
             unknown_descriptor = self.get_matrix([authors[id_]], False)
-            
+
             if self.scaler:
                 unknown_descriptor = self.scaler.transform(unknown_descriptor)
             if self.pca:
@@ -135,6 +183,7 @@ class weighted_distance_classifier(classifier):
                                         descriptor, unknown_descriptor),
                            target)
                          )
+
 
         values.sort()
 
@@ -160,20 +209,20 @@ class weighted_distance_classifier(classifier):
     def predict(self, author_id):
         author = self.db.get_author(author_id, reduced=True)
 
+        descriptor = self.get_matrix([author], True)
+
+        if self.scaler:
+            descriptor = self.scaler.transform(descriptor)
+        if self.pca:
+            descriptor = self.pca.transform(descriptor)
+
+        descriptor = descriptor[0]
+
         if self.weights.get(author_id) is None:
-            descriptor = self.get_matrix([author], True)
-            
-            if self.scaler:
-                descriptor = self.scaler.transform(descriptor)
-            if self.pca:
-                descriptor = self.pca.transform(descriptor)
-
-            descriptor = descriptor[0]
-
             self.train_weights(author_id, descriptor)
 
         unknown_descriptor = self.get_matrix([author], False)
-        
+
         if self.scaler:
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
@@ -202,15 +251,105 @@ class weighted_distance_classifier(classifier):
                                                          self.mean, self.std)]
         total_w = sum(self.weights[author])
         self.weights[author] = [x / total_w for x in self.weights[author]]
-        
-        
-        
 
+
+class rf_classifier(classifier):
+    def __init__(self, config, language):
+        self.config_file = config
+        self.config = utils.get_configuration(config)
+        self.db = db_layer(config)
+        self.language = language
+        self.feature_list = []
+        self.fe = self.db.get_feature_extractor(language)
+        self.rf_criterion = self.config["rf"][self.language]["criterion"]
+        self.rf_num_estimators = self.config["rf"][self.language]["estimators"]
+        self.prob_degree = 5
+        self.use_adjustment = True
+
+    def get_composed_descriptor(self, known_descriptor, unknown_descriptor):
+        return [((x - d) ** 2 + 1) / ((x - m) ** 2 + 1) \
+                for (m, d, x) in zip(self.mean,
+                                     known_descriptor, unknown_descriptor)]
+
+    def train(self, authors_id):
+        authors = [self.db.get_author(a, True) for a in authors_id]
+        samples = self.get_matrix(authors)
+        self.scaler = None
+
+        self.pca = None
+        #self.pca = PCA(n_components=100)
+        #self.pca.fit(samples)
+
+        if self.scaler:
+            samples = self.scaler.transform(samples)
+        if self.pca:
+            samples = self.pca.transform(samples)
+
+        self.mean = np.mean(samples, axis=0)
+        self.std = np.std(samples, axis=0)
+
+        gt = self.db.get_ground_truth(self.language)
+
+        new_samples = []
+        new_targets = []
+
+        for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
+            unknown = self.db.get_unknown_document(author)
+            unknown_descriptor = self.get_matrix([authors[id_]], False)
+
+            if self.scaler:
+                unknown_descriptor = self.scaler.transform(unknown_descriptor)
+            if self.pca:
+                unknown_descriptor = self.pca.transform(unknown_descriptor)
+
+            unknown_descriptor = unknown_descriptor[0]
+            target = gt[author]
+
+            new_samples.append(self.get_composed_descriptor(descriptor,
+                                                        unknown_descriptor))
+            new_targets.append(target)
+
+        # Fir the Random Forest
+        new_samples = np.asarray(new_samples)
+        new_targets = np.asarray(new_targets)
+        self.rf = RandomForestClassifier(n_estimators=self.rf_num_estimators,
+                                         criterion=self.rf_criterion,
+                                         n_jobs=-1)
+        self.rf.fit(new_samples, new_targets)
+
+    def expand_prob(self, p, degree):
+        return [p ** d for d in range(degree)]
+
+    def predict(self, author_id):
+        author = self.db.get_author(author_id, reduced=True)
+        descriptor = self.get_matrix([author], True)
+
+        if self.scaler:
+            descriptor = self.scaler.transform(descriptor)
+        if self.pca:
+            descriptor = self.pca.transform(descriptor)
+
+        descriptor = descriptor[0]
+
+        unknown_descriptor = self.get_matrix([author], False)
+
+        if self.scaler:
+            unknown_descriptor = self.scaler.transform(unknown_descriptor)
+        if self.pca:
+            unknown_descriptor = self.pca.transform(unknown_descriptor)
+
+        unknown_descriptor = unknown_descriptor[0]
+
+        composed = self.get_composed_descriptor(descriptor, unknown_descriptor)
+
+        prob = self.rf.predict_proba(composed)[0][1]
+        return prob
 
 
 class ubm(classifier):
-    
-    def __init__(self, config, language, fe):
+
+    def __init__(self, config, language, fe, n_pca = 5, n_gaussians=2, \
+                 r=16, normals_type='diag'):
         self.config_file = config
         self.config = utils.get_configuration(config)
         self.db = db_layer(config)
@@ -219,6 +358,10 @@ class ubm(classifier):
         self.fe = fe
         self.weights = {}
         self.threshold = 0.0
+        self.n_pca = n_pca
+        self.r = r
+        self.tp = normals_type
+        self.components=n_gaussians
     
     def plot_test(self):
         # Number of samples per component
@@ -274,9 +417,11 @@ class ubm(classifier):
         plt.show()
         exit(-1)
            
+
     def mvnpdf(self, mean, covar, samples):
         multivariate_normal.pdf(samples, mean=mean, cov=covar)
-        return multivariate_normal.pdf(samples, mean=mean, cov=covar) #allow_singular=True
+        return multivariate_normal.pdf(samples, mean=mean, cov=covar)
+               # allow_singular=True
 
     def alfa(self, n, r):
         return n/(n+r)
@@ -345,48 +490,43 @@ class ubm(classifier):
         
         return adapted_weights, adapted_means, adapted_covars
         
-    def train(self, authors_id, n_pca, n_gaussians, \
-                                    normals_type='spherical', r=5, debug=False):
-
-        #Cambiar a False para funcionamiento normal
-        self.r = r
-        self.tp = normals_type
+    def train(self, authors_id, debug=False):
         
         if debug:
             self.plot_test()
-                    
+
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
-        
+
         self.scaler = MinMaxScaler()
         self.scaler.fit(samples)
 
         self.pca = None
-        self.pca = PCA(n_components=n_pca)
+        self.pca = PCA(n_components=self.n_pca)
         self.pca.fit(samples)
 
         if self.scaler:
             samples = self.scaler.transform(samples)
         if self.pca:
             samples = self.pca.transform(samples)
-            
+
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
-    
+
         # print samples.shape
         distances = []
 
         gt = self.db.get_ground_truth(self.language)
         
-        self.components=n_gaussians
         n_classes = len(np.unique(gt.values()))    
         self.bg_classifier = GMM(n_components=self.components, covariance_type=self.tp)
+
                            #'spherical', 'diag', 'tied', 'full'])
-        self.bg_classifier.fit(samples)                   
+        self.bg_classifier.fit(samples)
         ws = self.bg_classifier.weights_
         ms = self.bg_classifier.means_
-        cvs = self.bg_classifier.covars_        
-        values = []              
+        cvs = self.bg_classifier.covars_
+        values = []
         for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
             unknown = self.db.get_unknown_document(author)
             unknown_descriptor = self.get_matrix([authors[id_]], False)
@@ -403,6 +543,7 @@ class ubm(classifier):
                     self.em(ws, ms, cvs,  [descriptor], self.r)
             # print agm.score(descriptor) > self.bg_classifier.score(descriptor), agm.score(descriptor), self.bg_classifier.score(descriptor)
             values.append((agm.score(ud)/self.bg_classifier.score(ud),target))
+
 
         values.sort()
         best_threshold = 0
@@ -432,23 +573,24 @@ class ubm(classifier):
         if self.pca:
             descriptor = self.pca.transform(descriptor)
         descriptor = descriptor[0]
-            
+
         unknown_descriptor = self.get_matrix([author], False)
         if self.scaler:
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
             unknown_descriptor = self.pca.transform(unknown_descriptor)
         ud = unknown_descriptor[0]
-        
+
         ws = self.bg_classifier.weights_
         ms = self.bg_classifier.means_
         cvs = self.bg_classifier.covars_
-        
-        agm = GMM(n_components=self.components,covariance_type=self.tp)
+
+        agm = GMM(n_components=self.components, covariance_type=self.tp)
         agm.weights_, agm.means_, agm.covars_ = \
                 self.em(ws, ms, cvs,  [descriptor], self.r)
                 
         if agm.score(ud)/self.bg_classifier.score(ud) < self.threshold:
+
             return 1.0
         else:
             return 0.0
@@ -464,3 +606,53 @@ class ubm(classifier):
                                     for (d, s) in zip(bounded_d, self.std)]
         total_w = sum(self.weights[author])
         self.weights[author] = [x / total_w for x in self.weights[author]]
+
+
+class adjustment_classifier(classifier):
+    def __init__(self, config, language, classifier):
+        self.config_file = config
+        self.config = utils.get_configuration(config)
+        self.db = db_layer(config)
+        self.language = language
+        
+        self.prob_degree = 5
+        self.rate = 0.8
+
+        self.classifier = classifier
+
+    def train(self, authors_id):
+        authors = [self.db.get_author(a, True) for a in authors_id]
+        gt = self.db.get_ground_truth(self.language)
+
+        pos = [a for a in authors_id if gt[a] == 1.0]
+        neg = [a for a in authors_id if gt[a] == 0.0]
+
+        tr = pos[: int(self.rate * len(pos))] + \
+             neg[: int(self.rate * len(neg))]
+        ts = pos[int(self.rate * len(pos)):] + neg[int(self.rate * len(neg)):]
+
+        self.classifier.train(tr)
+
+        # Fit a linear model to adjust the probabilities
+        probs = [(self.classifier.predict(a), gt[a]) for a in ts]
+
+        probs = [(self.expand_prob(p, self.prob_degree), t) for p, t in probs]
+        probs_X = np.asarray([p for p, t in probs])
+        probs_y = np.asarray([t for p, t in probs])
+
+        self.lr_probs = LinearRegression()
+        self.lr_probs.fit(probs_X, probs_y)
+
+        self.classifier.train(authors_id)
+
+    def expand_prob(self, p, degree):
+        return [p ** d for d in range(degree)]
+
+    def predict(self, author_id):
+        prob = self.classifier.predict(author_id)
+        expanded_prob = self.expand_prob(prob, self.prob_degree)
+        adjusted_prob = self.lr_probs.predict(expanded_prob)
+        if (adjusted_prob >= 0.5) == (prob >= 0.5):
+            return max(0.0, min(1.0, adjusted_prob))
+        else:
+            return prob

@@ -115,7 +115,7 @@ class db_layer:
         f = open(path)
         ret = f.read().decode("utf-8")
         f.close()
-        
+
         return ret
 
     def set_feature(self, author, ft_name, ft_value, commit=False):
@@ -150,20 +150,19 @@ class db_layer:
         pickle.dump(fe, f, pickle.HIGHEST_PROTOCOL)
         f.close()
 
-
     def get_feature_extractor(self, language):
-        fe_path = self.feature_extractor_path(language)        
+        fe_path = self.feature_extractor_path(language)
         f = open(fe_path, 'rb')
         ret = pickle.load(f)
         f.close()
-        
+
         return ret
 
     def get_ground_truth(self, language):
         f = open(os.path.join(self.config["dataset"], language + "_truth.txt"))
         ret = f.readlines()
         f.close()
-        
+
         ret = [x.strip().split() for x in ret]
         ret = {x[0]: 1.0 if x[1] == 'Y' else 0.0 for x in ret}
 

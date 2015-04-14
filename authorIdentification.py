@@ -29,7 +29,7 @@ parser.add_argument('--clearfeatures', metavar="C", nargs=1,
                     default=[0], type=int,
                     help='Clear previous features (0-1)')
 parser.add_argument('--language', metavar="lang", nargs='?',
-                    default=['EN','DU','GR','SP'],
+                    default=['EN', 'DU', 'GR', 'SP'],
                     help='Only handles the given languages')
 parser.add_argument('-i', metavar="path", nargs='?',
                     default=[''], help='Importer input path.')
@@ -62,8 +62,8 @@ if type(args.language) == str:
 print args.language
 
 if args.i != '':
-    clear(args.language , args.o, bool(args.cleardataset[0]))    
-    import_languages(config, args.language , args.i, args.o)
+    clear(args.language, args.o, bool(args.cleardataset[0]))
+    import_languages(config, args.language, args.i, args.o)
 
 db = db_layer(args.config)
 
@@ -73,13 +73,17 @@ for ln in args.language:
                    [
                        clear_fe(args.config),
                        # pos_fe(args.config),
-                       # hapax_fe(args.config),
+                       hapax_fe(args.config),
                        word_distribution_fe(args.config),
                        num_tokens_fe(args.config),
                        stop_words_fe(args.config),
                        punctuation_fe(args.config),
                        structure_fe(args.config),
-                       char_distribution_fe(args.config)
+                       char_distribution_fe(args.config),
+                       spacing_fe(args.config),
+                       #punctuation_ngrams_fe(args.config),
+                       stopword_topics_fe(args.config),
+                       word_topics_fe(args.config)
                    ])
 
     print "Language:", ln
@@ -87,16 +91,16 @@ for ln in args.language:
     authors = db.get_authors(ln)
 
     if args.clearfeatures[0]:
-        # print "Clearing features..."
+        print "Clearing features..."
         for id_author, author in enumerate(authors):
             db.clear_features(author, commit=True)
 
             if id_author % 10 == 0:
-                # print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
+                print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
 
     if args.train[0]:
-        # print "Training features..."
+        print "Training features..."
         fe.train(authors)
         # db.store_feature_extractor(fe, ln)
     else:
@@ -104,13 +108,13 @@ for ln in args.language:
         pass
 
     if args.compute[0]:
-        # print "Computing features..."
+        print "Computing features..."
         for id_author, author in enumerate(authors):
             author = fe.compute(author, known=True)
             author = fe.compute(author, known=False)
 
             if (id_author + 1) % 10 == 0:
-                # print "%0.2f%%\r" % ((id_author + 1) * 100.0 / len(authors)),
+                print "%0.2f%%\r" % ((id_author + 1) * 100.0 / len(authors)),
                 os.sys.stdout.flush()
         print
     print
@@ -121,13 +125,39 @@ for ln in args.language:
         pos = [a for a in authors if gt[a] == 1.0]
         neg = [a for a in authors if gt[a] == 0.0]
 
-        for j in [1, 2, 4, 8, 16, 32]:
-            print '  r=',j
-            tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
-            ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
+        # for j in [1, 2, 4, 8, 16, 32]:
+        #     print '  r=',j
+        #     tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
+        #     ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
+        #
+        #     w_clf = ubm(args.config, ln, fe)
+        #     #Debug true lo hace con data sintetica y muestra grafica
+        #     w_clf.train(tr, 5, 2, normals_type='diag', r=j, debug=False)
+        #     print '    test: ',w_clf.accuracy(ts)
+        #     print
+        rate = 0.7
+        tr = pos[: int(rate * len(pos))] + neg[: int(rate * len(neg))]
+        ts = pos[int(rate * len(pos)):] + neg[int(rate * len(neg)):]
 
-            w_clf = ubm(args.config, ln, fe)
-            #Debug true lo hace con data sintetica y muestra grafica
-            w_clf.train(tr, 5, 2, normals_type='diag', r=j, debug=False)
-            print '    test: ',w_clf.accuracy(ts)
+        # w_clf = rf_classifier(args.config, ln)
+        models = [
+                  #("Weights", weighted_distance_classifier(args.config, ln)),
+                  # ("adj-RF", adjustment_classifier(args.config, ln,
+                  #                                  rf_classifier(args.config,
+                  #                                                ln))),
+                  # ("    RF", rf_classifier(args.config, ln)),
+                  ("    UBM", ubm(args.config, ln, fe,  n_pca=5, n_gaussians=2, \
+                                     r=16, normals_type='diag')),
+                 ]
+        #Debug true lo hace con data sintetica y muestra grafica
+        #w_clf.train(tr, 10,  30, debug=False)
+        for name, model in models:
+            model.train(tr)
+            print name
+            metrics = model.metrics(ts)
+            print "Acc: %0.4f" % metrics[0]
+            print "AUC: %0.4f" % metrics[1]
+            print "c@1: %0.4f" % metrics[2]
             print
+        print "==="
+        print
