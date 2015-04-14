@@ -131,15 +131,20 @@ for ln in args.language:
         w_clf = rf_classifier(args.config, ln)
         models = [
                   #("Weights", weighted_distance_classifier(args.config, ln)),
-                  ("RF", rf_classifier(args.config, ln))
+                  ("adj-RF", adjustment_classifier(args.config, ln,
+                                                   rf_classifier(args.config,
+                                                                 ln))),
+                  ("    RF", rf_classifier(args.config, ln)),
                  ]
         #Debug true lo hace con data sintetica y muestra grafica
         #w_clf.train(tr, 10,  30, debug=False)
         for name, model in models:
             model.train(tr)
             print name
-            print "Acc: %0.4f" % model.accuracy(ts)
-            print "AUC: %0.4f" % model.auc(ts)
-            print "c@1: %0.4f" % model.c_at_one(ts)
+            metrics = model.metrics(ts)
+            print "Acc: %0.4f" % metrics[0]
+            print "AUC: %0.4f" % metrics[1]
+            print "c@1: %0.4f" % metrics[2]
             print
+        print "==="
         print
