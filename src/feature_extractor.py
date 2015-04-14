@@ -644,7 +644,7 @@ class pos_fe(feature_extractor):
                     self.config['languages'][lang] + ' '
         a_titles = ['cat ' + a + '|' + tagger for a in a_titles]
         self.lemmas = cmd.getoutput(';'.join(a_titles)).split('\n')
-
+        #print self.lemmas
         self.lemmas = set([i.split('\t')[2] for i in self.lemmas \
                         if i[0] != '\t'])
         # unwanted = set(['<unknown>','@card@'])
@@ -889,9 +889,7 @@ class word_topics_fe(feature_extractor):
 
     def train(self, authors):
         lang = self.db.get_author_language(authors[0])
-        print self.stopwords[lang]
         # transform corpus into a list of preprocessed documents
-        print authors
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
         documents = map(lambda x: self.tokenizer.tokenize(x), documents)
