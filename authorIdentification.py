@@ -80,10 +80,10 @@ for ln in args.language:
                        punctuation_fe(args.config),
                        structure_fe(args.config),
                        char_distribution_fe(args.config),
-                       spacing_fe(args.config),
-                       punctuation_ngrams_fe(args.config),
+                       # spacing_fe(args.config),
+                       # punctuation_ngrams_fe(args.config),
                        # stopword_topics_fe(args.config),
-                       word_topics_fe(args.config)
+                       # word_topics_fe(args.config)
                    ])
 
     print "Language:", ln
@@ -125,16 +125,6 @@ for ln in args.language:
         pos = [a for a in authors if gt[a] == 1.0]
         neg = [a for a in authors if gt[a] == 0.0]
 
-        # for j in [1, 2, 4, 8, 16, 32]:
-        #     print '  r=',j
-        #     tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
-        #     ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
-        #
-        #     w_clf = ubm(args.config, ln, fe)
-        #     #Debug true lo hace con data sintetica y muestra grafica
-        #     w_clf.train(tr, 5, 2, normals_type='diag', r=j, debug=False)
-        #     print '    test: ',w_clf.accuracy(ts)
-        #     print
         rate = 0.7
         tr = pos[: int(rate * len(pos))] + neg[: int(rate * len(neg))]
         ts = pos[int(rate * len(pos)):] + neg[int(rate * len(neg)):]
@@ -150,7 +140,7 @@ for ln in args.language:
                           #                                                ln))),
                           # ("    RF", rf_classifier(args.config, ln)),
                           ("\t\t    UBM", ubm(args.config, ln, fe,  n_pca=pca, \
-                                             n_gaussians=2, r=r, normals_type='diag')),
+                                             n_gaussians=3, r=r, normals_type='diag')),
                          ]
                 #Debug true lo hace con data sintetica y muestra grafica
                 #w_clf.train(tr, 10,  30, debug=False)

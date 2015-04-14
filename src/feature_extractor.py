@@ -12,6 +12,7 @@ from textblob import TextBlob
 from operator import add
 import numpy as np
 import stop_words
+import many_stop_words as msw
 import tempfile
 import copy
 import json
@@ -181,14 +182,14 @@ class structure_fe(feature_extractor):
 class stop_words_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
 
         super(stop_words_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.tokenizer = RegexpTokenizer(r'\w+')    
         self.stopwords = {ln: get_stop_words(ln) \
                             for ln in self.db.get_languages()}
 
@@ -432,11 +433,11 @@ class char_distribution_fe(feature_extractor):
 class word_distribution_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
 
         super(word_distribution_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
@@ -521,11 +522,11 @@ class punctuation_ngrams_fe(feature_extractor):
 class hapax_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
 
         super(hapax_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
@@ -629,11 +630,11 @@ class pos_fe(feature_extractor):
     #@ put k in config file
     def __init__(self, config_file="conf/config.json", k=10):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
 
         super(pos_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
@@ -839,11 +840,11 @@ class pos_fe(feature_extractor):
 class stopword_distribution_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
 
         super(stopword_distribution_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
@@ -888,11 +889,12 @@ class stopword_distribution_fe(feature_extractor):
 class word_topics_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
+            
         super(word_topics_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'[\w\']+')
         self.stopwords = {ln: get_stop_words(ln) \
@@ -939,11 +941,12 @@ class word_topics_fe(feature_extractor):
 class stopword_topics_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
-            try:
-                mapped_lang = self.config["languages"][lang]
-                return stop_words.get_stop_words(mapped_lang)
-            except:
-                return []
+            folder = self.config["stop_words"]
+            f = open(self.config["stop_words"] + '/' + lang + '.sw')
+            ret = f.read().split('\n')
+            f.close()
+            return ret
+            
         super(stopword_topics_fe, self).__init__(config_file)
         self.tokenizer = RegexpTokenizer(r'\w+')
         self.stopwords = {ln: get_stop_words(ln) \

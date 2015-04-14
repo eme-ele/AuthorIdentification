@@ -1,6 +1,7 @@
 {
     "dataset": "dataset",
     "results": "output",
+	"stop_words": "stop_words",
     "languages":
     {
         "DU": "dutch",
