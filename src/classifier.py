@@ -1,5 +1,6 @@
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.mixture import GMM, DPGMM
 from sklearn.metrics import *
@@ -73,6 +74,32 @@ class classifier:
                 nc += 1.0
 
         return (nc + (nu * nc / n)) / n
+
+    def metrics(self, authors):
+        acc_ret = 0.0
+        gt = self.db.get_ground_truth(self.language)
+        probabilities = []
+        targets = []
+        n = float(len(authors))
+        nc = 0
+        nu = 0
+
+        for author in authors:
+            prediction = self.predict(author)
+            probabilities.append(prediction)
+            targets.append(gt[author])
+            
+            if (prediction >= 0.5) == (gt[author] >= 0.5):
+                acc_ret += 1.0
+            
+            if prediction == 0.5:
+                nu += 1
+            elif (prediction >= 0.5) == (gt[author] >= 0.5):
+                nc += 1.0
+
+        return acc_ret / float(len(authors)), \
+               roc_auc_score(targets, probabilities), \
+               (nc + (nu * nc / n)) / n
 
     def get_matrix(self, authors, known=True):
         self.feature_list = [a["features"].keys() for a in authors]
@@ -157,6 +184,7 @@ class weighted_distance_classifier(classifier):
                            target)
                          )
 
+
         values.sort()
 
         best_threshold = 0
@@ -235,6 +263,8 @@ class rf_classifier(classifier):
         self.fe = self.db.get_feature_extractor(language)
         self.rf_criterion = self.config["rf"][self.language]["criterion"]
         self.rf_num_estimators = self.config["rf"][self.language]["estimators"]
+        self.prob_degree = 5
+        self.use_adjustment = True
 
     def get_composed_descriptor(self, known_descriptor, unknown_descriptor):
         return [((x - d) ** 2 + 1) / ((x - m) ** 2 + 1) \
@@ -279,12 +309,16 @@ class rf_classifier(classifier):
                                                         unknown_descriptor))
             new_targets.append(target)
 
+        # Fir the Random Forest
         new_samples = np.asarray(new_samples)
         new_targets = np.asarray(new_targets)
         self.rf = RandomForestClassifier(n_estimators=self.rf_num_estimators,
                                          criterion=self.rf_criterion,
                                          n_jobs=-1)
         self.rf.fit(new_samples, new_targets)
+
+    def expand_prob(self, p, degree):
+        return [p ** d for d in range(degree)]
 
     def predict(self, author_id):
         author = self.db.get_author(author_id, reduced=True)
@@ -308,7 +342,8 @@ class rf_classifier(classifier):
 
         composed = self.get_composed_descriptor(descriptor, unknown_descriptor)
 
-        return self.rf.predict_proba(composed)[0][1]
+        prob = self.rf.predict_proba(composed)[0][1]
+        return prob
 
 
 class ubm(classifier):
@@ -593,3 +628,53 @@ class ubm(classifier):
                                     for (d, s) in zip(bounded_d, self.std)]
         total_w = sum(self.weights[author])
         self.weights[author] = [x / total_w for x in self.weights[author]]
+
+
+class adjustment_classifier(classifier):
+    def __init__(self, config, language, classifier):
+        self.config_file = config
+        self.config = utils.get_configuration(config)
+        self.db = db_layer(config)
+        self.language = language
+        
+        self.prob_degree = 5
+        self.rate = 0.8
+
+        self.classifier = classifier
+
+    def train(self, authors_id):
+        authors = [self.db.get_author(a, True) for a in authors_id]
+        gt = self.db.get_ground_truth(self.language)
+
+        pos = [a for a in authors_id if gt[a] == 1.0]
+        neg = [a for a in authors_id if gt[a] == 0.0]
+
+        tr = pos[: int(self.rate * len(pos))] + \
+             neg[: int(self.rate * len(neg))]
+        ts = pos[int(self.rate * len(pos)):] + neg[int(self.rate * len(neg)):]
+
+        self.classifier.train(tr)
+
+        # Fit a linear model to adjust the probabilities
+        probs = [(self.classifier.predict(a), gt[a]) for a in ts]
+
+        probs = [(self.expand_prob(p, self.prob_degree), t) for p, t in probs]
+        probs_X = np.asarray([p for p, t in probs])
+        probs_y = np.asarray([t for p, t in probs])
+
+        self.lr_probs = LinearRegression()
+        self.lr_probs.fit(probs_X, probs_y)
+
+        self.classifier.train(authors_id)
+
+    def expand_prob(self, p, degree):
+        return [p ** d for d in range(degree)]
+
+    def predict(self, author_id):
+        prob = self.classifier.predict(author_id)
+        expanded_prob = self.expand_prob(prob, self.prob_degree)
+        adjusted_prob = self.lr_probs.predict(expanded_prob)
+        if (adjusted_prob >= 0.5) == (prob >= 0.5):
+            return max(0.0, min(1.0, adjusted_prob))
+        else:
+            return prob
