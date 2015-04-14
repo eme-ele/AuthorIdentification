@@ -131,11 +131,12 @@ for ln in args.language:
         w_clf = rf_classifier(args.config, ln)
         models = [
                   #("Weights", weighted_distance_classifier(args.config, ln)),
-                  ("adj-RF", adjustment_classifier(args.config, ln,
-                                                   rf_classifier(args.config,
-                                                                 ln))),
+                  ("reject-RF", reject_classifier(args.config, ln,
+                                                  rf_classifier(args.config,
+                                                                ln))),
                   ("    RF", rf_classifier(args.config, ln)),
                  ]
+
         #Debug true lo hace con data sintetica y muestra grafica
         #w_clf.train(tr, 10,  30, debug=False)
         for name, model in models:
