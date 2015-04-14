@@ -134,18 +134,35 @@ for ln in args.language:
                   ("reject-RF", reject_classifier(args.config, ln,
                                                   rf_classifier(args.config,
                                                                 ln))),
-                  ("    RF", rf_classifier(args.config, ln)),
+                  ("adj-RF",  adjustment_classifier(args.config, ln,
+                                                    rf_classifier(args.config,
+                                                    ln))),
+                  ("rej-adj-RF", 
+                   adjustment_classifier(args.config, ln,
+                                         reject_classifier(args.config, ln,
+                                                   rf_classifier(args.config,
+                                                   ln)))),
+                  ("RF", rf_classifier(args.config, ln)),
                  ]
+
+        model = model_selector(args.config, ln, [x[1] for x in models])
+        model.train(tr)
+        metrics = model.metrics(ts)
+        print "Acc: %0.4f" % metrics[0]
+        print "AUC: %0.4f" % metrics[1]
+        print "c@1: %0.4f" % metrics[2]
+        print "Ranking: %0.4f" % (metrics[1] * metrics[2])
+        print 
 
         #Debug true lo hace con data sintetica y muestra grafica
         #w_clf.train(tr, 10,  30, debug=False)
-        for name, model in models:
-            model.train(tr)
-            print name
-            metrics = model.metrics(ts)
-            print "Acc: %0.4f" % metrics[0]
-            print "AUC: %0.4f" % metrics[1]
-            print "c@1: %0.4f" % metrics[2]
-            print
-        print "==="
+        #for name, model in models:
+            #model.train(tr)
+            #print name
+            #metrics = model.metrics(ts)
+            #print "Acc: %0.4f" % metrics[0]
+            #print "AUC: %0.4f" % metrics[1]
+            #print "c@1: %0.4f" % metrics[2]
+            #print
+        #print "==="
         print
