@@ -87,16 +87,16 @@ for ln in args.language:
     authors = db.get_authors(ln)
 
     if args.clearfeatures[0]:
-        print "Clearing features..."
+        # print "Clearing features..."
         for id_author, author in enumerate(authors):
             db.clear_features(author, commit=True)
 
             if id_author % 10 == 0:
-                print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
+                # print "%0.2f%%\r" % (id_author * 100.0 / len(authors)),
                 os.sys.stdout.flush()
 
     if args.train[0]:
-        print "Training features..."
+        # print "Training features..."
         fe.train(authors)
         # db.store_feature_extractor(fe, ln)
     else:
@@ -104,13 +104,13 @@ for ln in args.language:
         pass
 
     if args.compute[0]:
-        print "Computing features..."
+        # print "Computing features..."
         for id_author, author in enumerate(authors):
             author = fe.compute(author, known=True)
             author = fe.compute(author, known=False)
 
             if (id_author + 1) % 10 == 0:
-                print "%0.2f%%\r" % ((id_author + 1) * 100.0 / len(authors)),
+                # print "%0.2f%%\r" % ((id_author + 1) * 100.0 / len(authors)),
                 os.sys.stdout.flush()
         print
     print
@@ -121,10 +121,13 @@ for ln in args.language:
         pos = [a for a in authors if gt[a] == 1.0]
         neg = [a for a in authors if gt[a] == 0.0]
 
-        tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
-        ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
+        for j in [1, 2, 4, 8, 16, 32]:
+            print '  r=',j
+            tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
+            ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
 
-        w_clf = ubm(args.config, ln, fe)
-        #Debug true lo hace con data sintetica y muestra grafica
-        w_clf.train(tr, 10 ,  30 ,debug=False)
-        print w_clf.accuracy(ts)
+            w_clf = ubm(args.config, ln, fe)
+            #Debug true lo hace con data sintetica y muestra grafica
+            w_clf.train(tr, 5, 2, normals_type='diag', r=j, debug=False)
+            print '    test: ',w_clf.accuracy(ts)
+            print
