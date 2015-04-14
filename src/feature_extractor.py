@@ -313,7 +313,7 @@ class spacing_fe(feature_extractor):
 
     def set_avg_min_max(self, author, name, elements):
 
-        if len(elemens) > 0:
+        if len(elements) > 0:
             author = self.db.set_feature(author,
                                          "spacing_" + name + "_avg",
                                          np.mean(elements))
