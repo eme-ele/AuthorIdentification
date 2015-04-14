@@ -312,15 +312,27 @@ class punctuation_fe(feature_extractor):
 class spacing_fe(feature_extractor):
 
     def set_avg_min_max(self, author, name, elements):
-        author = self.db.set_feature(author,
-                                     "spacing_" + name + "_avg",
-                                     np.mean(elements))
-        author = self.db.set_feature(author,
-                                     "spacing_" + name + "_min",
-                                     np.min(elements))
-        author = self.db.set_feature(author,
-                                     "spacing_" + name + "_max",
-                                     np.max(elements))
+
+        if len(elements) > 0:
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_avg",
+                                         np.mean(elements))
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_min",
+                                         np.min(elements))
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_max",
+                                         np.max(elements))
+        else:
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_avg",
+                                         0.0)
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_min",
+                                         0.0)
+            author = self.db.set_feature(author,
+                                         "spacing_" + name + "_max",
+                                         0.0)
         return author
 
     def compute_features(self, author):
@@ -644,7 +656,7 @@ class pos_fe(feature_extractor):
                     self.config['languages'][lang] + ' '
         a_titles = ['cat ' + a + '|' + tagger for a in a_titles]
         self.lemmas = cmd.getoutput(';'.join(a_titles)).split('\n')
-
+        #print self.lemmas
         self.lemmas = set([i.split('\t')[2] for i in self.lemmas \
                         if i[0] != '\t'])
         # unwanted = set(['<unknown>','@card@'])
@@ -882,7 +894,7 @@ class word_topics_fe(feature_extractor):
             except:
                 return []
         super(word_topics_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.tokenizer = RegexpTokenizer(r'[\w\']+')
         self.stopwords = {ln: get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
         self.k = 10
@@ -898,9 +910,11 @@ class word_topics_fe(feature_extractor):
                         for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
+        self.dictionary.filter_extremes(no_below=5, no_above=0.5)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
         self.model = models.LdaModel(documents, num_topics=self.k,
                                      id2word=self.dictionary, iterations=1000)
+
 
     def compute_features(self, author):
         topics = [0.0] * self.k
@@ -947,6 +961,7 @@ class stopword_topics_fe(feature_extractor):
                         for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
+        self.dictionary.filter_extremes(no_below=5, no_above=0.5)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
         self.model = models.LdaModel(documents, num_topics=self.k,
                                      id2word=self.dictionary, iterations=1000)
