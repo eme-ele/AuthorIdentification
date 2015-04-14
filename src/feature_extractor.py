@@ -240,6 +240,7 @@ class stop_words_fe(feature_extractor):
                                    "sentence::")
         return author
 
+
 class punctuation_fe(feature_extractor):
     def avg_min_max_char(self, documents, char):
         l = [d.count(char) for d in documents]
@@ -340,15 +341,23 @@ class spacing_fe(feature_extractor):
             lines = filter(lambda x: x is not "", lines)
 
             spaces = map(lambda x: re.match(r'^(\s+).*', x), lines)
-            num_consecutive_spaces_beg += [len(x.group(1)) if x is not None else 0 for x in spaces]
+            num_consecutive_spaces_beg += [len(x.group(1)) \
+                                            if x is not None else 0 \
+                                            for x in spaces]
 
             spaces = map(lambda x: re.match(r'.*(\s+)$', x), lines)
-            num_consecutive_spaces_end += [len(x.group(1)) if x is not None else 0 for x in spaces]
+            num_consecutive_spaces_end += [len(x.group(1)) \
+                                           if x is not None else 0 \
+                                           for x in spaces]
 
-        author = self.set_avg_min_max(author, "consecutive", num_consecutive_spaces)
-        author = self.set_avg_min_max(author, "empty_lines", num_empty_lines)
-        author = self.set_avg_min_max(author, "consecutive_beginning", num_empty_lines)
-        author = self.set_avg_min_max(author, "consecutive_ending", num_empty_lines)
+        author = self.set_avg_min_max(author, "consecutive",
+                                      num_consecutive_spaces)
+        author = self.set_avg_min_max(author, "empty_lines",
+                                      num_empty_lines)
+        author = self.set_avg_min_max(author, "consecutive_beginning",
+                                      num_empty_lines)
+        author = self.set_avg_min_max(author, "consecutive_ending",
+                                      num_empty_lines)
 
         return author
 
@@ -428,8 +437,9 @@ class word_distribution_fe(feature_extractor):
         self.words = utils.flatten(self.words)
         self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
         self.words = utils.flatten(self.words)
-        self.words =  list(set([x.lower() for x in self.words]))
-        self.words = filter(lambda x: x not in self.stopwords[lang], self.words)
+        self.words = list(set([x.lower() for x in self.words]))
+        self.words = filter(lambda x: x not in self.stopwords[lang],
+                            self.words)
         self.words.sort()
         # print self.words
 
@@ -459,6 +469,7 @@ class word_distribution_fe(feature_extractor):
 
         return author
 
+
 class punctuation_ngrams_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         super(punctuation_ngrams_fe, self).__init__(config_file)
@@ -469,14 +480,13 @@ class punctuation_ngrams_fe(feature_extractor):
     def train(self, authors):
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
-        self.ngram_vectorizer = CountVectorizer(ngram_range=(self.ngram_x,\
-                                                             self.ngram_y),\
-                                                token_pattern=self.token_pattern,\
-                                                analyzer='word')
+        self.ngram_vectorizer = \
+            CountVectorizer(ngram_range=(self.ngram_x, self.ngram_y),\
+                                         token_pattern=self.token_pattern,\
+                                         analyzer='word')
         self.ngram_vectorizer.fit(documents)
         # use only normalized term frequencies
         self.transformer = TfidfTransformer(use_idf=False)
-
 
     def compute_features(self, author):
         freq = self.ngram_vectorizer.transform(author["corpus"])
@@ -494,8 +504,6 @@ class punctuation_ngrams_fe(feature_extractor):
                                          value)
 
         return author
-
-
 
 
 class hapax_fe(feature_extractor):
@@ -516,7 +524,7 @@ class hapax_fe(feature_extractor):
         def get_author_titles(author_corpus):
             author_titles = {}
             for i in author_corpus:
-                author_titles[i.split('\n',1)[0].strip().lower()] = i
+                author_titles[i.split('\n', 1)[0].strip().lower()] = i
             return author_titles
 
         lang = self.db.get_author_language(authors[0])
@@ -529,8 +537,8 @@ class hapax_fe(feature_extractor):
         for i in documents:
             title = i.strip().split('\n', 1)[0].lower()
             if not title in self.titles:
-                document_tokens =  [x.lower() \
-                                    for x in self.tokenizer.tokenize(i)]
+                document_tokens = [x.lower() \
+                                   for x in self.tokenizer.tokenize(i)]
                 self.titles[title] = Counter(document_tokens)
                 self.titles[title] = set([i for i in self.titles[title]\
                                              if self.titles[title][i] == 1])
@@ -547,18 +555,17 @@ class hapax_fe(feature_extractor):
             author_h = utils.flatten([self.titles[i] for i in author_h])
             self.author_hapax[self.db.get_author(a)["id"]] = set(author_h)
 
-
     def compute_features(self, author):
         def get_author_titles(author_corpus):
             author_titles = {}
             for i in author_corpus:
-                author_titles[i.strip().split('\n',1)[0].lower()] = i
+                author_titles[i.strip().split('\n', 1)[0].lower()] = i
             return author_titles
 
         def uniqueness(title, document, _id):
             if not title in self.titles:
-                words =  [x.lower() \
-                            for x in self.tokenizer.tokenize(document)]
+                words = [x.lower() \
+                           for x in self.tokenizer.tokenize(document)]
                 words = Counter(words)
                 words = set([i for i in words if words[i] == 1])
             else:
@@ -566,7 +573,6 @@ class hapax_fe(feature_extractor):
 
             return len(self.author_hapax[_id].intersection(words)),\
                              len(words.difference(self.words))
-
 
         # Bag-of-Words
         author_titles = get_author_titles(author["corpus"])
@@ -580,31 +586,36 @@ class hapax_fe(feature_extractor):
             uwf_avg += uwf
             hapax_avg += hp
 
-        uwf_avg = uwf_avg/float(len(author_titles))
-        hapax_avg = hapax_avg/float(len(author_titles))
+        uwf_avg = uwf_avg / float(len(author_titles))
+        hapax_avg = hapax_avg / float(len(author_titles))
         # print "avg: ", _avg, "      max: ", _max, "      min: ", _min
         # author_hapax = len(self.words.intersection(author_words))
 
-
         author = self.db.set_feature(author,
-                    "style::single_unique_language_document_tokens_max", hapax_max)
+                    "style::single_unique_language_document_tokens_max",
+                    hapax_max)
         author = self.db.set_feature(author,
-                    "style::single_unique_language_document_tokens_min", hapax_min)
+                    "style::single_unique_language_document_tokens_min",
+                    hapax_min)
         author = self.db.set_feature(author,
-                    "style::single_unique_language_document_tokens_avg", hapax_avg)
+                    "style::single_unique_language_document_tokens_avg",
+                    hapax_avg)
         author = self.db.set_feature(author,
-                    "style::single_unique_language_tokens_repetition_max",uwf_max)
+                    "style::single_unique_language_tokens_repetition_max",
+                    uwf_max)
         author = self.db.set_feature(author,
-                    "style::single_unique_language_tokens_repetition_min", uwf_min)
+                    "style::single_unique_language_tokens_repetition_min",
+                    uwf_min)
         author = self.db.set_feature(author,
-                    "style::single_unique_language_tokens_repetition_avg", uwf_avg)
+                    "style::single_unique_language_tokens_repetition_avg",
+                    uwf_avg)
 
         return author
 
 
 class pos_fe(feature_extractor):
     #@ put k in config file
-    def __init__(self, config_file="conf/config.json",k=10):
+    def __init__(self, config_file="conf/config.json", k=10):
         def get_stop_words(lang):
             try:
                 mapped_lang = self.config["languages"][lang]
@@ -629,8 +640,8 @@ class pos_fe(feature_extractor):
         a_titles = [[a['path'] + '/' + d for d in a['documents']] \
                     for a in a_titles]
         a_titles = utils.flatten(a_titles)
-        tagger = 'src/pos_tagger/cmd/tree-tagger-'+\
-                    self.config['languages'][lang]+' '
+        tagger = 'src/pos_tagger/cmd/tree-tagger-' + \
+                    self.config['languages'][lang] + ' '
         a_titles = ['cat ' + a + '|' + tagger for a in a_titles]
         self.lemmas = cmd.getoutput(';'.join(a_titles)).split('\n')
 
@@ -642,7 +653,6 @@ class pos_fe(feature_extractor):
         self.lemmas.sort()
         # print len(self.lemmas)
 
-
     def compute_features(self, author):
         #part of speech definition
         def get_pos_defs(lang):
@@ -650,7 +660,7 @@ class pos_fe(feature_extractor):
                 return self.lang_pos_defs[lang]
 
             pos_defs = {}
-            f = open('src/tagset/'+lang+'.csv','r')
+            f = open('src/tagset/' + lang + '.csv', 'r')
             pos = ''
             for l in f.readlines():
                 l = l.lower()
@@ -685,7 +695,8 @@ class pos_fe(feature_extractor):
             pos_x_doc = []
             for to in tagger_output:
                 # print Counter([tag[1] for tag in to if not tag[1] in pd])
-                pos_x_doc.append(Counter([pd[tag[1]] for tag in to if tag[1] in pd]))
+                pos_x_doc.append(Counter([pd[tag[1]] for tag in to \
+                                            if tag[1] in pd]))
 
             # For Lexical density (Ld) -> Dense Content (Compact)
             # nlex: #interests, n: total tokens
@@ -695,9 +706,9 @@ class pos_fe(feature_extractor):
             # ld for document
             ld_x_doc = []
             for doc in pos_x_doc:
-                 nlex = sum([doc[pos] for pos in doc if pos in interests])
-                 n = sum(doc.values())
-                 ld_x_doc.append(nlex/float(n))
+                nlex = sum([doc[pos] for pos in doc if pos in interests])
+                n = sum(doc.values())
+                ld_x_doc.append(nlex / float(n))
 
             author = self.db.set_feature(author,
                         "style::lexical_density_max", max(ld_x_doc))
@@ -706,16 +717,18 @@ class pos_fe(feature_extractor):
             author = self.db.set_feature(author,
                         "style::lexical_density_avg", numpy.mean(ld_x_doc))
 
-
         def word_diversity(author, tagger_output):
             # WORD DIVERSITY (WD)
             lemma_x_doc = []
             for to in tagger_output:
-                lemma_x_doc.append(Counter([tag[2] for tag in to if len(tag) > 2]))
+                lemma_x_doc.append(Counter([tag[2] for tag in to \
+                                            if len(tag) > 2]))
 
             # WD = nlemma/n for each document
-            # nlemma: #lemmas len(doc.keys()) , n: total tokens sum(doc.values())
-            wd_x_doc = [len(doc.keys())/float(sum(doc.values())) for doc in lemma_x_doc]
+            # nlemma: #lemmas len(doc.keys()),
+            # n: total tokens sum(doc.values())
+            wd_x_doc = [len(doc.keys()) / float(sum(doc.values())) \
+                        for doc in lemma_x_doc]
 
             author = self.db.set_feature(author,
                         "style::word_diversity_max", max(wd_x_doc))
@@ -731,13 +744,14 @@ class pos_fe(feature_extractor):
             author_lemmas = []
             for doc in lemma_x_doc:
                 doc_len = float(sum(doc.values()))
-                author_lemmas.append([doc[i]/doc_len for i in self.lemmas])
+                author_lemmas.append([doc[i] / doc_len for i in self.lemmas])
 
             # print len(author_lemmas)
             author_lemmas = np.divide(np.sum(author_lemmas, axis=0),
                                      len(author_lemmas))
             # print author_lemmas
-            for id_w, (word, value) in enumerate(zip(self.lemmas, author_lemmas)):
+            for id_w, (word, value) in enumerate(zip(self.lemmas,
+                                                     author_lemmas)):
                 author = self.db.set_feature(author,
                                              "BoW::lemmas_avg::" + word,
                                              value)
@@ -752,7 +766,7 @@ class pos_fe(feature_extractor):
                 lemma_x_words = {}
                 for tag in to:
                     # print '\t'.join(tag)
-                    if len(tag) < 3: # or tag[2] in unwanted :
+                    if len(tag) < 3:  # or tag[2] in unwanted :
                         continue
                     if not tag[2] in lemma_x_words:
                         lemma_x_words[tag[2]] = set({})
@@ -761,31 +775,31 @@ class pos_fe(feature_extractor):
                 lemma_distrib = []
                 n_log_lemmas = float(math.log(len(lemma_x_words) + 1) + 1)
                 for l in self.lemmas:
-                    freq = float(len(lemma_x_words[l])) if l in lemma_x_words else 0
-                    lemma_distrib.append(freq/n_log_lemmas)
+                    freq = float(len(lemma_x_words[l])) \
+                                if l in lemma_x_words else 0
+                    lemma_distrib.append(freq / n_log_lemmas)
                 lemma_x_words_doc.append(lemma_distrib)
 
             norm = math.log(numpy.mean([len(i) for i in lemma_x_doc]) + 1) + 1
 
             # Bag-of-Words Lemma Diversity Avg
-            lemma_x_words_doc_avg = np.divide(np.sum(lemma_x_words_doc, axis=0),
+            lemma_x_words_doc_avg = np.divide(np.sum(lemma_x_words_doc,
+                                                     axis=0),
                                      len(lemma_x_words_doc))
-            lemma_x_words_doc_avg = [i/norm for i in lemma_x_words_doc_avg]
-            for id_w, (word, value) in enumerate(zip(self.lemmas, lemma_x_words_doc_avg)):
+            lemma_x_words_doc_avg = [i / norm for i in lemma_x_words_doc_avg]
+            for id_w, (word, value) in enumerate(zip(self.lemmas,
+                                                     lemma_x_words_doc_avg)):
                 author = self.db.set_feature(author,
-                                             "BoW::word_diversity_per_lema_avg::" + word,
-                                             value)
+                                 "BoW::word_diversity_per_lema_avg::" + word,
+                                 value)
             # Bag-of-Words Lemma Diversity Max
             lemma_x_words_doc_max = np.max(lemma_x_words_doc, axis=0)
-            lemma_x_words_doc_max = [i/norm for i in lemma_x_words_doc_max]
-            for id_w, (word, value) in enumerate(zip(self.lemmas, lemma_x_words_doc_max)):
+            lemma_x_words_doc_max = [i / norm for i in lemma_x_words_doc_max]
+            for id_w, (word, value) in enumerate(zip(self.lemmas,
+                                                     lemma_x_words_doc_max)):
                 author = self.db.set_feature(author,
-                                             "BoW::word_diversity_per_lema_max::" + word,
-                                             value)
-
-            # print max([max(i) for i in lemma_x_words_doc])[1], ' ', max([max(i) for i in lemma_x_words_doc])[0]/norm
-            # print min([max(i) for i in lemma_x_words_doc])[1], ' ', min([max(i) for i in lemma_x_words_doc])[0]/norm
-            # print numpy.mean([max(i)[0] for i in lemma_x_words_doc])/norm
+                                 "BoW::word_diversity_per_lema_max::" + word,
+                                 value)
 
         # Tag author documents
         lang = self.db.get_author_language(author['id'])
@@ -793,10 +807,11 @@ class pos_fe(feature_extractor):
             return author
 
         lang = self.config['languages'][lang]
-        a_titles = [author['path']+'/'+d for d in author['documents']]
-        tagger = 'src/pos_tagger/cmd/tree-tagger-'+\
-                    lang+' '
-        tagger_output = [cmd.getoutput('cat '+at+'|'+tagger) for at in a_titles]
+        a_titles = [author['path'] + '/' + d for d in author['documents']]
+        tagger = 'src/pos_tagger/cmd/tree-tagger-' + \
+                    lang + ' '
+        tagger_output = [cmd.getoutput('cat ' + at + '|' + tagger) \
+                            for at in a_titles]
         # pxd[3:] because the first 3 lines of the output are flags
         tagger_output = [to.lower().split('\n') for to in tagger_output]
         tagger_output = [[p.split('\t') for p in to] for to in tagger_output]
@@ -804,7 +819,7 @@ class pos_fe(feature_extractor):
         lexical_density(lang, author, tagger_output)
         lemma_x_doc = word_diversity(author, tagger_output)
         lemmas_bog(author, lemma_x_doc)
-        lemma_diversity(author,tagger_output,lemma_x_doc)
+        lemma_diversity(author, tagger_output, lemma_x_doc)
 
         return author
 
@@ -858,7 +873,6 @@ class stopword_distribution_fe(feature_extractor):
         return author
 
 
-
 class word_topics_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         def get_stop_words(lang):
@@ -880,30 +894,32 @@ class word_topics_fe(feature_extractor):
         documents = utils.flatten(documents)
         documents = map(lambda x: self.tokenizer.tokenize(x), documents)
         documents = [map(lambda x: x.lower(), d) for d in documents]
-        documents = [filter(lambda x: x not in self.stopwords[lang], d) for d in documents]
+        documents = [filter(lambda x: x not in self.stopwords[lang], d) \
+                        for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
-        self.model = models.LdaModel(documents, num_topics=self.k, id2word=self.dictionary, iterations=1000)
+        self.model = models.LdaModel(documents, num_topics=self.k,
+                                     id2word=self.dictionary, iterations=1000)
 
     def compute_features(self, author):
-        topics = [0.0]*self.k
+        topics = [0.0] * self.k
         lang = self.db.get_author_language(author["id"])
         for n, document in enumerate(author["corpus"]):
             document = self.tokenizer.tokenize(document)
-            document = filter(lambda x: x not in self.stopwords[lang], document)
+            document = filter(lambda x: x not in self.stopwords[lang],
+                              document)
             ext_topics = self.model[self.dictionary.doc2bow(document)]
             for _id, val in ext_topics:
                 topics[_id] += val
         # average of the topic distribution
-        topics = map(lambda x: x/(n+1.0), topics)
+        topics = map(lambda x: x / (n + 1.0), topics)
         for (index, prop) in enumerate(topics):
             self.db.set_feature(author,
                                 "LDA::word::" + str(index),
                                 prop)
 
         return author
-
 
 
 class stopword_topics_fe(feature_extractor):
@@ -927,7 +943,8 @@ class stopword_topics_fe(feature_extractor):
         documents = utils.flatten(documents)
         documents = map(lambda x: self.tokenizer.tokenize(x), documents)
         documents = [map(lambda x: x.lower(), d) for d in documents]
-        documents = [filter(lambda x: x in self.stopwords[lang], d) for d in documents]
+        documents = [filter(lambda x: x in self.stopwords[lang], d) \
+                        for d in documents]
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
@@ -935,9 +952,8 @@ class stopword_topics_fe(feature_extractor):
                                      id2word=self.dictionary, iterations=1000)
         #print self.model.show_topics()
 
-
     def compute_features(self, author):
-        topics = [0.0]*self.k
+        topics = [0.0] * self.k
         lang = self.db.get_author_language(author["id"])
         for n, document in enumerate(author["corpus"]):
             document = self.tokenizer.tokenize(document)
@@ -946,13 +962,10 @@ class stopword_topics_fe(feature_extractor):
             for _id, val in ext_topics:
                 topics[_id] += val
         # average of the topic distribution
-        topics = map(lambda x: x/(n+1.0), topics)
+        topics = map(lambda x: x / (n + 1.0), topics)
         for index, prop in enumerate(topics):
             self.db.set_feature(author,
                                 "LDA::stopword::" + str(index),
                                 prop)
 
         return author
-
-
-

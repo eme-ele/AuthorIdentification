@@ -29,7 +29,7 @@ parser.add_argument('--clearfeatures', metavar="C", nargs=1,
                     default=[0], type=int,
                     help='Clear previous features (0-1)')
 parser.add_argument('--language', metavar="lang", nargs='?',
-                    default=['EN','DU','GR','SP'],
+                    default=['EN', 'DU', 'GR', 'SP'],
                     help='Only handles the given languages')
 parser.add_argument('-i', metavar="path", nargs='?',
                     default=[''], help='Importer input path.')
@@ -62,8 +62,8 @@ if type(args.language) == str:
 print args.language
 
 if args.i != '':
-    clear(args.language , args.o, bool(args.cleardataset[0]))    
-    import_languages(config, args.language , args.i, args.o)
+    clear(args.language, args.o, bool(args.cleardataset[0]))
+    import_languages(config, args.language, args.i, args.o)
 
 db = db_layer(args.config)
 
@@ -124,8 +124,9 @@ for ln in args.language:
         pos = [a for a in authors if gt[a] == 1.0]
         neg = [a for a in authors if gt[a] == 0.0]
 
-        tr = pos[: int(0.7 * len(pos))] + neg[: int(0.7 * len(neg))]
-        ts = pos[int(0.7 * len(pos)):] + neg[int(0.7 * len(neg)):]
+        rate = 0.7
+        tr = pos[: int(rate * len(pos))] + neg[: int(rate * len(neg))]
+        ts = pos[int(rate * len(pos)):] + neg[int(rate * len(neg)):]
 
         w_clf = rf_classifier(args.config, ln)
         models = [

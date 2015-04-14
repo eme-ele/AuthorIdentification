@@ -26,19 +26,19 @@
     {
         "EN":{
            "criterion": "gini",
-           "estimators": 400
+           "estimators": 1000
         },
         "DU":{
            "criterion": "entropy",
-           "estimators": 400
+           "estimators": 1000
         },
         "GR":{
             "criterion": "gini",
-           "estimators": 400
+           "estimators": 1000
         },
         "SP":{
             "criterion": "gini",
-           "estimators": 400
+           "estimators": 1000
         }
     }
 }

@@ -46,12 +46,12 @@ class classifier:
             if (self.predict(author) >= 0.5) == (gt[author] >= 0.5):
                 ret += 1.0
 
-        return ret * 100.0 / len(authors)
+        return ret / float(len(authors))
 
     def auc(self, authors):
         probabilities = []
         targets = []
-        
+
         gt = self.db.get_ground_truth(self.language)
 
         for author in authors:
@@ -59,7 +59,7 @@ class classifier:
             targets.append(gt[author])
 
         return roc_auc_score(targets, probabilities)
-    
+
     def c_at_one(self, authors):
         n = float(len(authors))
         nc = 0
@@ -77,7 +77,7 @@ class classifier:
     def get_matrix(self, authors, known=True):
         self.feature_list = [a["features"].keys() for a in authors]
         self.feature_list = list(set([f for fts in self.feature_list \
-                                        for f in fts ]))
+                                        for f in fts]))
         self.feature_list.sort()
 
         samples = [[s["features" if known else "unknown_features"].get(f,
@@ -114,7 +114,7 @@ class weighted_distance_classifier(classifier):
     def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
-        
+
         self.scaler = None
         self.scaler = MinMaxScaler()
         self.scaler.fit(samples)
@@ -130,19 +130,19 @@ class weighted_distance_classifier(classifier):
 
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
-        
+
         distances = []
 
         gt = self.db.get_ground_truth(self.language)
-        
+
         values = []
-        
+
         for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
             self.train_weights(author, descriptor)
-            
+
             unknown = self.db.get_unknown_document(author)
             unknown_descriptor = self.get_matrix([authors[id_]], False)
-            
+
             if self.scaler:
                 unknown_descriptor = self.scaler.transform(unknown_descriptor)
             if self.pca:
@@ -182,19 +182,19 @@ class weighted_distance_classifier(classifier):
         author = self.db.get_author(author_id, reduced=True)
 
         descriptor = self.get_matrix([author], True)
-        
+
         if self.scaler:
             descriptor = self.scaler.transform(descriptor)
         if self.pca:
             descriptor = self.pca.transform(descriptor)
 
         descriptor = descriptor[0]
-        
+
         if self.weights.get(author_id) is None:
             self.train_weights(author_id, descriptor)
 
         unknown_descriptor = self.get_matrix([author], False)
-        
+
         if self.scaler:
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
@@ -266,7 +266,7 @@ class rf_classifier(classifier):
         for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
             unknown = self.db.get_unknown_document(author)
             unknown_descriptor = self.get_matrix([authors[id_]], False)
-        
+
             if self.scaler:
                 unknown_descriptor = self.scaler.transform(unknown_descriptor)
             if self.pca:
@@ -274,22 +274,22 @@ class rf_classifier(classifier):
 
             unknown_descriptor = unknown_descriptor[0]
             target = gt[author]
-            
+
             new_samples.append(self.get_composed_descriptor(descriptor,
                                                         unknown_descriptor))
             new_targets.append(target)
-            
+
         new_samples = np.asarray(new_samples)
         new_targets = np.asarray(new_targets)
         self.rf = RandomForestClassifier(n_estimators=self.rf_num_estimators,
                                          criterion=self.rf_criterion,
                                          n_jobs=-1)
         self.rf.fit(new_samples, new_targets)
-        
+
     def predict(self, author_id):
         author = self.db.get_author(author_id, reduced=True)
         descriptor = self.get_matrix([author], True)
-            
+
         if self.scaler:
             descriptor = self.scaler.transform(descriptor)
         if self.pca:
@@ -298,21 +298,21 @@ class rf_classifier(classifier):
         descriptor = descriptor[0]
 
         unknown_descriptor = self.get_matrix([author], False)
-        
+
         if self.scaler:
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
             unknown_descriptor = self.pca.transform(unknown_descriptor)
 
         unknown_descriptor = unknown_descriptor[0]
-        
+
         composed = self.get_composed_descriptor(descriptor, unknown_descriptor)
 
         return self.rf.predict_proba(composed)[0][1]
 
 
 class ubm(classifier):
-    
+
     def __init__(self, config, language, fe):
         self.config_file = config
         self.config = utils.get_configuration(config)
@@ -322,74 +322,79 @@ class ubm(classifier):
         self.fe = fe
         self.weights = {}
         self.threshold = 0.0
-        
+
     def mvnpdf(self, mean, covar, samples):
         multivariate_normal.pdf(samples, mean=mean, cov=covar)
-        return multivariate_normal.pdf(samples, mean=mean, cov=covar) #allow_singular=True
+        return multivariate_normal.pdf(samples, mean=mean, cov=covar)
+               # allow_singular=True
 
     def alfa(self, n, r, rho=''):
         if rho == 'w':
             r = 10
         else:
             r = 16
-        return n/(n+r)
-        
+        return n / (n + r)
+
     # x is a vector of samples
     def em(self, weights, means, covars,  samples, r):
         # print '\nAdaptation'
         for i in range(0, 1):
             pr = np.array(
                 [
-                    weights[i]*self.mvnpdf(means[i],covars[i],samples) + 1e-7 \
-                        for i in range(0,len(means))
+                    weights[i] * self.mvnpdf(means[i], covars[i],
+                                             samples) + 1e-7 \
+                        for i in range(0, len(means))
                 ]
             ).T
 
             # print '\nSamples: ', samples
             # print '\nPr: ', pr
-            
+
             if len(samples) == 1:
                 pr = np.array([pr])
-            
+
             # print '\nNormalizing Factor: ',map(sum, pr)
-            pr = np.array([p/s for (p, s) in zip(pr,map(sum, pr))]).T
-            
+            pr = np.array([p / s for (p, s) in zip(pr, map(sum, pr))]).T
+
             ns = map(sum, pr)
             # print '\nNs: ', ns
-            
+
             # print '\nNormalized -Prs*Samples: ', pr, '*', samples, '/', ns
-            
-            new_means = [sum([p*s for p,s in zip(ps,samples)])/ns[i] \
+
+            new_means = [sum([p * s for p, s in zip(ps, samples)]) / ns[i] \
                                 for i, ps in enumerate(pr)]
             # print '\nNew Means: ',new_means
 
-            new_covars = [sum([p*(s**2) for p,s in zip(ps,samples)])/ns[i] \
-                                for i, ps in enumerate(pr)]
+            new_covars = [sum([p * (s ** 2) for p, s in zip(ps,
+                                                            samples)]) / \
+                          ns[i] for i, ps in enumerate(pr)]
             # print '\nNew Covars: ',new_covars
-            
+
             alfas = [self.alfa(n, r) for n in ns]
             # Bayesian adaptation
             t = len(samples)
-            adapted_weights = [a*n/t + (1-a)*w \
+            adapted_weights = [a * n / t + (1 - a) * w \
                             for a, n, w in zip(alfas, ns, weights)]
-            adapted_weights = adapted_weights/sum(adapted_weights)
-        
-            alfas = [self.alfa(n, r,'w') for n in ns]
-            
-            adapted_means = [a*nm + (1-a)*m \
+            adapted_weights = adapted_weights / sum(adapted_weights)
+
+            alfas = [self.alfa(n, r, 'w') for n in ns]
+
+            adapted_means = [a * nm + (1 - a) * m \
                             for a, nm, m in zip(alfas, new_means, means)]
             adapted_means = np.array(adapted_means)
-            
+
             alfas = [self.alfa(n, r) for n in ns]
-        
-            adapted_covars = [a*nc + ((1-a)*(c+m**2) - am**2) for a, nc, c, am, m \
-                                in zip(alfas, new_covars, covars, adapted_means, means)]
+
+            adapted_covars = [a * nc + ((1 - a) * (c + m ** 2) - am ** 2)\
+                                for a, nc, c, am, m \
+                                    in zip(alfas, new_covars, covars,
+                                           adapted_means, means)]
             adapted_covars = np.array(adapted_covars)
-            
+
             weights = adapted_weights
             means = adapted_means
             covars = adapted_covars
-        
+
         # print
         # print 'weights'
         # print weights
@@ -407,7 +412,7 @@ class ubm(classifier):
         # print covars
         # print adapted_covars
         return adapted_weights, adapted_means, adapted_covars
-        
+
     def train(self, authors_id, n_pca, n_gaussians, debug=False):
         def plot_test():
             # Number of samples per component
@@ -418,17 +423,19 @@ class ubm(classifier):
             C = np.array([[0., -0.1], [1.7, .4]])
             X = np.r_[np.dot(np.random.randn(n_samples, 2), C),
                       .7 * np.random.randn(n_samples, 2) + np.array([-6, 3])]
-            X = np.vstack((X, np.array([[5,4], [5.1,4.1],  [5.1,4]])))
+            X = np.vstack((X, np.array([[5, 4], [5.1, 4.1],  [5.1, 4]])))
             print X
             # Fit a mixture of Gaussians with EM using five components
             gmm = GMM(n_components=2, covariance_type='full')
             gmm.fit(X)
-    
+
             agm = GMM(n_components=2, covariance_type='full')
             agm.weights_, agm.means_, agm.covars_ = \
-                    self.em(gmm.weights_, gmm.means_, gmm.covars_,  [X[len(X)-1]], 1)
-    
-            # Fit a Dirichlet process mixture of Gaussians using five components
+                    self.em(gmm.weights_, gmm.means_, gmm.covars_,
+                            [X[len(X) - 1]], 1)
+
+            # Fit a Dirichlet process mixture of Gaussians using five
+            # components
             dpgmm = DPGMM(n_components=2, covariance_type='full')
             dpgmm.fit(X)
 
@@ -452,7 +459,8 @@ class ubm(classifier):
                     # Plot an ellipse to show the Gaussian component
                     angle = np.arctan(u[1] / u[0])
                     angle = 180 * angle / np.pi  # convert to degrees
-                    ell = mpl.patches.Ellipse(mean, v[0], v[1], 180 + angle, color=color)
+                    ell = mpl.patches.Ellipse(mean, v[0], v[1], 180 + angle,
+                                              color=color)
                     ell.set_clip_box(splot.bbox)
                     ell.set_alpha(0.5)
                     splot.add_artist(ell)
@@ -469,10 +477,10 @@ class ubm(classifier):
         #Cambiar a False para funcionamiento normal
         if debug:
             plot_test()
-                    
+
         authors = [self.db.get_author(a, True) for a in authors_id]
         samples = self.get_matrix(authors)
-        
+
         self.scaler = MinMaxScaler()
         self.scaler.fit(samples)
 
@@ -484,25 +492,26 @@ class ubm(classifier):
             samples = self.scaler.transform(samples)
         if self.pca:
             samples = self.pca.transform(samples)
-            
+
         self.mean = np.mean(samples, axis=0)
         self.std = np.std(samples, axis=0)
-    
+
         # print samples.shape
         distances = []
 
         gt = self.db.get_ground_truth(self.language)
-        
-        self.components=n_gaussians
-        n_classes = len(np.unique(gt.values()))    
+
+        self.components = n_gaussians
+        n_classes = len(np.unique(gt.values()))
         self.tp = 'diag'
-        self.bg_classifier = GMM(n_components=self.components, covariance_type=self.tp)
+        self.bg_classifier = GMM(n_components=self.components,
+                                 covariance_type=self.tp)
                            #'spherical', 'diag', 'tied', 'full'])
-        self.bg_classifier.fit(samples)                   
+        self.bg_classifier.fit(samples)
         ws = self.bg_classifier.weights_
         ms = self.bg_classifier.means_
-        cvs = self.bg_classifier.covars_        
-        values = []              
+        cvs = self.bg_classifier.covars_
+        values = []
         for id_, (author, descriptor) in enumerate(zip(authors_id, samples)):
             unknown = self.db.get_unknown_document(author)
             unknown_descriptor = self.get_matrix([authors[id_]], False)
@@ -513,15 +522,16 @@ class ubm(classifier):
             ud = unknown_descriptor[0]
 
             target = gt[author]
-            
+
             agm = GMM(n_components=self.components, covariance_type=self.tp)
             agm.weights_, agm.means_, agm.covars_ = \
                     self.em(ws, ms, cvs, [descriptor], 16)
 
             print self.components
             print ud.shape
-            
-            values.append((agm.score(ud)/self.bg_classifier.score(ud),target))
+
+            values.append((agm.score(ud) / self.bg_classifier.score(ud),
+                           target))
             print "aca"
 
         values.sort()
@@ -551,23 +561,23 @@ class ubm(classifier):
         if self.pca:
             descriptor = self.pca.transform(descriptor)
         descriptor = descriptor[0]
-            
+
         unknown_descriptor = self.get_matrix([author], False)
         if self.scaler:
             unknown_descriptor = self.scaler.transform(unknown_descriptor)
         if self.pca:
             unknown_descriptor = self.pca.transform(unknown_descriptor)
         ud = unknown_descriptor[0]
-        
+
         ws = self.bg_classifier.weights_
         ms = self.bg_classifier.means_
         cvs = self.bg_classifier.covars_
-        
-        agm = GMM(n_components=self.components,covariance_type=self.tp)
+
+        agm = GMM(n_components=self.components, covariance_type=self.tp)
         agm.weights_, agm.means_, agm.covars_ = \
                 self.em(ws, ms, cvs,  [descriptor], 16)
-                
-        if agm.score(ud)/self.bg_classifier.score(ud) < self.threshold:
+
+        if agm.score(ud) / self.bg_classifier.score(ud) < self.threshold:
             return 1.0
         else:
             return 0.0

@@ -11,7 +11,6 @@ from utils import *
 from importer import *
 
 
-
 if __name__ != '__main__':
     os.sys.exit(1)
 
@@ -22,7 +21,7 @@ parser.add_argument('--clear', metavar="C", nargs=1,
                     default=[0], type=int,
                     help='Clear previous dataset (0-1)')
 parser.add_argument('--language', metavar="lang", nargs='?',
-                    default=['EN','DU','GR','SP'],
+                    default=['EN', 'DU', 'GR', 'SP'],
                     help='Given a folder, imports all its subfolders that \
                             agrees with the indicated language')
 parser.add_argument('-i', metavar="path", nargs='?',
@@ -37,6 +36,6 @@ config = get_configuration(args.config)
 
 if type(args.language) == str:
     args.language = [args.language]
-    
-clear(args.language , args.o, bool(args.clear[0]))    
-import_languages(config, args.language , args.i, args.o)
+
+clear(args.language, args.o, bool(args.clear[0]))
+import_languages(config, args.language, args.i, args.o)

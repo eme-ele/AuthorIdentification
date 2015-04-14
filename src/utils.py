@@ -10,7 +10,7 @@ import re
 
 
 def get_configuration(filename):
-    try:        
+    try:
         f = open(filename)
         ret = json.loads(f.read())
         f.close()
