@@ -329,7 +329,7 @@ class spacing_fe(feature_extractor):
         num_consecutive_spaces_beg = []
         num_consecutive_spaces_end = []
 
-        for document in self.db.get_author(author)["corpus"]:
+        for document in author["corpus"]:
             spaces = re.findall(r'\s+', document)
             num_consecutive_spaces += map(lambda x: len(x), spaces)
 
@@ -342,7 +342,7 @@ class spacing_fe(feature_extractor):
             spaces = map(lambda x: re.match(r'^(\s+).*', x), lines)
             num_consecutive_spaces_beg += [len(x.group(1)) if x is not None else 0 for x in spaces]
 
-            spaces = map(lambda x: re.match(r'.*(\s+)$', x), a)
+            spaces = map(lambda x: re.match(r'.*(\s+)$', x), lines)
             num_consecutive_spaces_end += [len(x.group(1)) if x is not None else 0 for x in spaces]
 
         author = self.set_avg_min_max(author, "consecutive", num_consecutive_spaces)
@@ -888,16 +888,18 @@ class word_topics_fe(feature_extractor):
 
     def compute_features(self, author):
         topics = [0.0]*self.k
-        for document in author["corpus"]:
-            lang = db.get_author_language(author)
+        lang = self.db.get_author_language(author["id"])
+        for n, document in enumerate(author["corpus"]):
             document = self.tokenizer.tokenize(document)
             document = filter(lambda x: x not in self.stopwords[lang], document)
-            topics = map(add, topics, self.model[self.dictionary.doc2bow(document)])
+            ext_topics = self.model[self.dictionary.doc2bow(document)]
+            for _id, val in ext_topics:
+                topics[_id] += val
         # average of the topic distribution
-        topics = map(lambda x: x/self.k, topics)
-        for (index, prop) in topics:
+        topics = map(lambda x: x/(n+1.0), topics)
+        for (index, prop) in enumerate(topics):
             self.db.set_feature(author,
-                                "LDA::word::" + index,
+                                "LDA::word::" + str(index),
                                 prop)
 
         return author
@@ -931,20 +933,23 @@ class stopword_topics_fe(feature_extractor):
         documents = map(lambda x: self.dictionary.doc2bow(x), documents)
         self.model = models.LdaModel(documents, num_topics=self.k,
                                      id2word=self.dictionary, iterations=1000)
+        #print self.model.show_topics()
 
 
     def compute_features(self, author):
         topics = [0.0]*self.k
-        for document in author["corpus"]:
-            lang = self.db.get_author_language(author)
+        lang = self.db.get_author_language(author["id"])
+        for n, document in enumerate(author["corpus"]):
             document = self.tokenizer.tokenize(document)
             document = filter(lambda x: x in self.stopwords[lang], document)
-            topics = map(add, topics, self.model[self.dictionary.doc2bow(document)])
+            ext_topics = self.model[self.dictionary.doc2bow(document)]
+            for _id, val in ext_topics:
+                topics[_id] += val
         # average of the topic distribution
-        topics = map(lambda x: x/self.k, topics)
-        for (index, prop) in topics:
+        topics = map(lambda x: x/(n+1.0), topics)
+        for index, prop in enumerate(topics):
             self.db.set_feature(author,
-                                "LDA::stopword::" + index,
+                                "LDA::stopword::" + str(index),
                                 prop)
 
         return author
