@@ -80,10 +80,10 @@ for ln in args.language:
                        punctuation_fe(args.config),
                        structure_fe(args.config),
                        char_distribution_fe(args.config),
-                       # spacing_fe(args.config),
-                       # punctuation_ngrams_fe(args.config),
-                       # stopword_topics_fe(args.config),
-                       # word_topics_fe(args.config)
+                       spacing_fe(args.config),
+                       punctuation_ngrams_fe(args.config),
+                       stopword_topics_fe(args.config),
+                       word_topics_fe(args.config)
                    ])
 
     print "Language:", ln
@@ -102,7 +102,7 @@ for ln in args.language:
     if args.train[0]:
         print "Training features..."
         fe.train(authors)
-        # db.store_feature_extractor(fe, ln)
+        db.store_feature_extractor(fe, ln)
     else:
         fe = db.get_feature_extractor(ln)
         pass
@@ -131,20 +131,20 @@ for ln in args.language:
 
         w_clf = rf_classifier(args.config, ln)
         models = [
-                  #("Weights", weighted_distance_classifier(args.config, ln)),
+                  ("Weights", weighted_distance_classifier(args.config, ln)),
                   ("reject-RF", reject_classifier(args.config, ln,
                                                   rf_classifier(args.config,
                                                                 ln))),
                   ("adj-RF",  adjustment_classifier(args.config, ln,
                                                     rf_classifier(args.config,
                                                     ln))),
-                  ("rej-adj-RF", 
+                  ("rej-adj-RF",
                    adjustment_classifier(args.config, ln,
                                          reject_classifier(args.config, ln,
                                                    rf_classifier(args.config,
                                                    ln)))),
                   ("RF", rf_classifier(args.config, ln)),
-                  ("UBM", ubm(args.config, ln, fe,  n_pca=10, \
+                  ("UBM", ubm(args.config, ln, fe,  n_pca=5, \
                                      n_gaussians=2, r=8, normals_type='diag')),
                  ]
 

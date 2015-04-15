@@ -147,7 +147,7 @@ class db_layer:
             os.makedirs(os.path.dirname(fe_path))
 
         f = open(fe_path, 'wb')
-        pickle.dump(fe, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(fe, f, protocol=2)
         f.close()
 
     def get_feature_extractor(self, language):

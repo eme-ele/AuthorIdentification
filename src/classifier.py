@@ -429,64 +429,70 @@ class ubm(classifier):
     # x is a vector of samples
     def em(self, weights, means, covars,  samples, r, debug=False):
         # print '\nAdaptation'
-        pr = np.array(
-            [
-                weights[i]*self.mvnpdf(means[i],covars[i],samples) + 0.1**7 \
-                    for i in range(0,len(means))
-            ]
-        ).T
+        for lll in range(0,1):
+            pr = np.array(
+                [
+                    weights[i]*self.mvnpdf(means[i],covars[i],samples) + 0.1**7 \
+                        for i in range(0,len(means))
+                ]
+            ).T
         
-        if debug:
-            print '\nSamples: ', samples
-            print '\nPr: ', pr
+            if debug:
+                print '\nSamples: ', samples
+                print '\nPr: ', pr
         
-        if len(samples) == 1:
-            pr = np.array([pr])
+            if len(samples) == 1:
+                pr = np.array([pr])
         
-        if debug:
-            print '\nNormalizing Factor: ',map(sum, pr)
-        pr = np.array([p/s for (p, s) in zip(pr,map(sum, pr))]).T
-        ns = map(sum, pr)
+            if debug:
+                print '\nNormalizing Factor: ',map(sum, pr)
+            pr = np.array([p/s for (p, s) in zip(pr,map(sum, pr))]).T
+            ns = map(sum, pr)
         
 
         
-        new_means = [sum([p*s for p,s in zip(ps,samples)])/ns[i] \
-                            for i, ps in enumerate(pr)]
+            new_means = [sum([p*s for p,s in zip(ps,samples)])/ns[i] \
+                                for i, ps in enumerate(pr)]
 
-        new_covars = [sum([p*(s**2) for p,s in zip(ps,samples)])/ns[i] \
-                            for i, ps in enumerate(pr)]
+            new_covars = [sum([p*(s**2) for p,s in zip(ps,samples)])/ns[i] \
+                                for i, ps in enumerate(pr)]
         
         
-        alfas = [self.alfa(n, r) for n in ns]
-        # Bayesian adaptation
-        t = len(samples)
-        adapted_weights = [a*n/t + (1-a)*w \
-                        for a, n, w in zip(alfas, ns, weights)]
-        adapted_weights = adapted_weights/sum(adapted_weights)
+            alfas = [self.alfa(n, r) for n in ns]
+            # Bayesian adaptation
+            t = len(samples)
+            adapted_weights = [a*n/t + (1-a)*w \
+                            for a, n, w in zip(alfas, ns, weights)]
+            adapted_weights = adapted_weights/sum(adapted_weights)
                 
-        adapted_means = [a*nm + (1-a)*m \
-                        for a, nm, m in zip(alfas, new_means, means)]
-        adapted_means = np.array(adapted_means)
+            adapted_means = [a*nm + (1-a)*m \
+                            for a, nm, m in zip(alfas, new_means, means)]
+            adapted_means = np.array(adapted_means)
                 
-        adapted_covars = [a*nc + ((1-a)*(c+m**2) - am**2) for a, nc, c, am, m \
-                            in zip(alfas, new_covars, covars, adapted_means, means)]
+            adapted_covars = [a*nc + ((1-a)*(c+m**2) - am**2) for a, nc, c, am, m \
+                                in zip(alfas, new_covars, covars, adapted_means, means)]
         
-        adapted_covars = np.array([ac + 0.1**7 for ac in adapted_covars])
-        if debug:
-            print '\nNs: ', ns
-            print '\nNormalized -Prs*Samples: ', pr, '*', samples, '/', ns
-            print '\nNew Means: ',new_means
-            print '\nNew Covars: ',new_covars
-            print '\nweights'
-            print weights
-            print adapted_weights
-            print sum(adapted_weights)
-            print '\nmeans'
-            print means
-            print adapted_means
-            print '\ncovars'
-            print covars
-            print adapted_covars
+            adapted_covars = np.array([ac + 0.1**7 for ac in adapted_covars])
+            
+            if debug:
+                print '\nNs: ', ns
+                print '\nNormalized -Prs*Samples: ', pr, '*', samples, '/', ns
+                print '\nNew Means: ',new_means
+                print '\nNew Covars: ',new_covars
+                print '\nweights'
+                print weights
+                print adapted_weights
+                print sum(adapted_weights)
+                print '\nmeans'
+                print means
+                print adapted_means
+                print '\ncovars'
+                print covars
+                print adapted_covars
+                
+            weights = adapted_weights      
+            means =adapted_means                 
+            covars = adapted_covars
         
         return adapted_weights, adapted_means, adapted_covars
         
@@ -588,7 +594,7 @@ class ubm(classifier):
         agm = GMM(n_components=self.components, covariance_type=self.tp)
         agm.weights_, agm.means_, agm.covars_ = \
                 self.em(ws, ms, cvs,  [descriptor], self.r)
-                
+            
         if agm.score(ud)/self.bg_classifier.score(ud) < self.threshold:
 
             return 1.0

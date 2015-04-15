@@ -33,6 +33,7 @@ class feature_extractor(object):
         self.db = db_layer(config_file)
         self.paragraph_re = r'.+\n'
         self.language = None
+        self.regex = None
 
     def get_paragraphs(self, documents):
         ret = [list(re.findall(self.paragraph_re, d + '\n')) \
@@ -78,7 +79,16 @@ class feature_extractor(object):
 
     def compute_features(author):
         return author
-
+        
+    def get_stop_words(self, lang):
+        folder = self.config["stop_words"]
+        f = open(self.config["stop_words"] + '/' + lang + '.sw')
+        ret = f.read().decode('utf-8').split('\n')
+        f.close()
+        return ret
+        
+    def get_tokenizer(self):
+        return RegexpTokenizer(self.regex)
 
 class concat_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json", children=[]):
@@ -104,10 +114,11 @@ class clear_fe(feature_extractor):
 class num_tokens_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
         super(num_tokens_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
+        self.regex = r'\w+'
 
     def get_features(self, author, corpus, prefix):
-        corpus = [self.tokenizer.tokenize(d) for d in corpus]
+        tokenizer = self.get_tokenizer()
+        corpus = [tokenizer.tokenize(d) for d in corpus]
         unique_tokens = [list(set(t)) for t in corpus]
 
         # Number of tokens per document
@@ -181,20 +192,14 @@ class structure_fe(feature_extractor):
 
 class stop_words_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
-
         super(stop_words_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')    
-        self.stopwords = {ln: get_stop_words(ln) \
+        self.regex = r'\w+'    
+        self.stopwords = {ln: self.get_stop_words(ln) \
                             for ln in self.db.get_languages()}
 
     def get_features(self, author, corpus, prefix):
-        corpus = [self.tokenizer.tokenize(d) for d in corpus]
+        tokenizer = self.get_tokenizer()
+        corpus = [tokenizer.tokenize(d) for d in corpus]
         unique_tokens = [list(set(t)) for t in corpus]
 
         lang = self.db.get_author_language(author["id"])
@@ -432,23 +437,17 @@ class char_distribution_fe(feature_extractor):
 
 class word_distribution_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
-
         super(word_distribution_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
-        self.stopwords = {ln: get_stop_words(ln) \
+        self.regex = r'\w+'
+        self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
 
     def train(self, authors):
         lang = self.db.get_author_language(authors[0])
         self.words = [self.db.get_author(a)["corpus"] for a in authors]
         self.words = utils.flatten(self.words)
-        self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
+        tokenizer = self.get_tokenizer()
+        self.words = map(lambda x: tokenizer.tokenize(x), self.words)
         self.words = utils.flatten(self.words)
         self.words = list(set([x.lower() for x in self.words]))
         self.words = filter(lambda x: x not in self.stopwords[lang],
@@ -458,7 +457,8 @@ class word_distribution_fe(feature_extractor):
 
     def compute_features(self, author):
         def get_distribution(document):
-            distribution = self.tokenizer.tokenize(document)
+            tokenizer = self.get_tokenizer()
+            distribution = tokenizer.tokenize(document)
             distribution = [x.lower() for x in distribution]
             document_length = len(distribution)
             distribution = Counter(distribution)
@@ -521,16 +521,10 @@ class punctuation_ngrams_fe(feature_extractor):
 
 class hapax_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
 
         super(hapax_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
-        self.stopwords = {ln: get_stop_words(ln) \
+        self.regex = r'\w+'
+        self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
 
     def train(self, authors):
@@ -547,11 +541,12 @@ class hapax_fe(feature_extractor):
         self.titles = {}
         document_tokens = []
         title = ''
+        tokenizer = self.get_tokenizer()
         for i in documents:
             title = i.strip().split('\n', 1)[0].lower()
             if not title in self.titles:
                 document_tokens = [x.lower() \
-                                   for x in self.tokenizer.tokenize(i)]
+                                   for x in tokenizer.tokenize(i)]
                 self.titles[title] = Counter(document_tokens)
                 self.titles[title] = set([i for i in self.titles[title]\
                                              if self.titles[title][i] == 1])
@@ -576,9 +571,10 @@ class hapax_fe(feature_extractor):
             return author_titles
 
         def uniqueness(title, document, _id):
+            tokenizer = self.get_tokenizer()
             if not title in self.titles:
                 words = [x.lower() \
-                           for x in self.tokenizer.tokenize(document)]
+                           for x in tokenizer.tokenize(document)]
                 words = Counter(words)
                 words = set([i for i in words if words[i] == 1])
             else:
@@ -629,16 +625,9 @@ class hapax_fe(feature_extractor):
 class pos_fe(feature_extractor):
     #@ put k in config file
     def __init__(self, config_file="conf/config.json", k=10):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
-
         super(pos_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
-        self.stopwords = {ln: get_stop_words(ln) \
+        self.regex = r'\w+'
+        self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
         self.lang_pos_defs = {}
         self.k_max = k
@@ -839,23 +828,17 @@ class pos_fe(feature_extractor):
 
 class stopword_distribution_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
-
         super(stopword_distribution_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
-        self.stopwords = {ln: get_stop_words(ln) \
+        self.regex = r'\w+'
+        self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
 
     def train(self, authors):
         lang = self.db.get_author_language(authors[0])
         self.words = [self.db.get_author(a)["corpus"] for a in authors]
         self.words = utils.flatten(self.words)
-        self.words = map(lambda x: self.tokenizer.tokenize(x), self.words)
+        tokenizer = self.get_tokenizer()
+        self.words = map(lambda x: tokenizer.tokenize(x), self.words)
         self.words = utils.flatten(self.words)
         self.words = list(set([x.lower() for x in self.words]))
         self.words = filter(lambda x: x in self.stopwords[lang], self.words)
@@ -863,7 +846,8 @@ class stopword_distribution_fe(feature_extractor):
 
     def compute_features(self, author):
         def get_distribution(document):
-            distribution = self.tokenizer.tokenize(document)
+            tokenizer = self.get_tokenizer()
+            distribution = tokenizer.tokenize(document)
             distribution = [x.lower() for x in distribution]
             document_length = len(distribution)
             distribution = Counter(distribution)
@@ -888,16 +872,9 @@ class stopword_distribution_fe(feature_extractor):
 
 class word_topics_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
-            
         super(word_topics_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'[\w\']+')
-        self.stopwords = {ln: get_stop_words(ln) \
+        self.regex = r'[\w\']+'
+        self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
         self.k = 10
 
@@ -906,7 +883,8 @@ class word_topics_fe(feature_extractor):
         # transform corpus into a list of preprocessed documents
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
-        documents = map(lambda x: self.tokenizer.tokenize(x), documents)
+        tokenizer = self.get_tokenizer()
+        documents = map(lambda x: tokenizer.tokenize(x), documents)
         documents = [map(lambda x: x.lower(), d) for d in documents]
         documents = [filter(lambda x: x not in self.stopwords[lang], d) \
                         for d in documents]
@@ -922,7 +900,8 @@ class word_topics_fe(feature_extractor):
         topics = [0.0] * self.k
         lang = self.db.get_author_language(author["id"])
         for n, document in enumerate(author["corpus"]):
-            document = self.tokenizer.tokenize(document)
+            tokenizer = self.get_tokenizer()
+            document = tokenizer.tokenize(document)
             document = filter(lambda x: x not in self.stopwords[lang],
                               document)
             ext_topics = self.model[self.dictionary.doc2bow(document)]
@@ -940,28 +919,27 @@ class word_topics_fe(feature_extractor):
 
 class stopword_topics_fe(feature_extractor):
     def __init__(self, config_file="conf/config.json"):
-        def get_stop_words(lang):
-            folder = self.config["stop_words"]
-            f = open(self.config["stop_words"] + '/' + lang + '.sw')
-            ret = f.read().split('\n')
-            f.close()
-            return ret
-            
         super(stopword_topics_fe, self).__init__(config_file)
-        self.tokenizer = RegexpTokenizer(r'\w+')
-        self.stopwords = {ln: get_stop_words(ln) \
-                                for ln in self.db.get_languages()}
+        self.regex = r'\w+'
         self.k = 10
 
     def train(self, authors):
         lang = self.db.get_author_language(authors[0])
+        
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                                for ln in [lang]}
+        # print lang
+        # print self.stopwords
         # transform corpus into a list of preprocessed documents
         documents = [self.db.get_author(a)["corpus"] for a in authors]
         documents = utils.flatten(documents)
-        documents = map(lambda x: self.tokenizer.tokenize(x), documents)
+        tokenizer = self.get_tokenizer()
+        documents = map(lambda x: tokenizer.tokenize(x), documents)
         documents = [map(lambda x: x.lower(), d) for d in documents]
+        # print documents
         documents = [filter(lambda x: x in self.stopwords[lang], d) \
                         for d in documents]
+        # print documents
         # build topic model
         self.dictionary = corpora.Dictionary(documents)
         self.dictionary.filter_extremes(no_below=5, no_above=0.5)
@@ -974,7 +952,8 @@ class stopword_topics_fe(feature_extractor):
         topics = [0.0] * self.k
         lang = self.db.get_author_language(author["id"])
         for n, document in enumerate(author["corpus"]):
-            document = self.tokenizer.tokenize(document)
+            tokenizer = self.get_tokenizer()
+            document = tokenizer.tokenize(document)
             document = filter(lambda x: x in self.stopwords[lang], document)
             ext_topics = self.model[self.dictionary.doc2bow(document)]
             for _id, val in ext_topics:
