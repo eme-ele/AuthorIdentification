@@ -69,21 +69,21 @@ db = db_layer(args.config)
 
 
 for ln in args.language:
-    fe = concat_fe(args.config,
+    fe = concat_fe(args.config, db,
                    [
-                       clear_fe(args.config),
-                       pos_fe(args.config),
-                       hapax_fe(args.config),
-                       word_distribution_fe(args.config),
-                       num_tokens_fe(args.config),
-                       stop_words_fe(args.config),
-                       punctuation_fe(args.config),
-                       structure_fe(args.config),
-                       char_distribution_fe(args.config),
-                       spacing_fe(args.config),
-                       punctuation_ngrams_fe(args.config),
-                       stopword_topics_fe(args.config),
-                       word_topics_fe(args.config)
+                       clear_fe(args.config, db),
+                       #pos_fe(args.config, db),
+                       hapax_fe(args.config, db),
+                       word_distribution_fe(args.config, db),
+                       num_tokens_fe(args.config, db),
+                       stop_words_fe(args.config, db),
+                       punctuation_fe(args.config, db),
+                       structure_fe(args.config, db),
+                       char_distribution_fe(args.config, db),
+                       spacing_fe(args.config, db),
+                       punctuation_ngrams_fe(args.config, db),
+                       stopword_topics_fe(args.config, db),
+                       word_topics_fe(args.config, db)
                    ])
 
     print "Language:", ln
@@ -110,6 +110,7 @@ for ln in args.language:
     if args.compute[0]:
         print "Computing features..."
         for id_author, author in enumerate(authors):
+
             author = fe.compute(author, known=True)
             author = fe.compute(author, known=False)
 
@@ -129,30 +130,30 @@ for ln in args.language:
         tr = pos[: int(rate * len(pos))] + neg[: int(rate * len(neg))]
         ts = pos[int(rate * len(pos)):] + neg[int(rate * len(neg)):]
 
-        w_clf = rf_classifier(args.config, ln)
+        w_clf = rf_classifier(args.config, db, ln)
         models = [
-                  ("Weights", weighted_distance_classifier(args.config, ln)),
-                  ("reject-RF", reject_classifier(args.config, ln,
-                                                  rf_classifier(args.config,
+                  ("Weights", weighted_distance_classifier(args.config, db, ln)),
+                  ("reject-RF", reject_classifier(args.config, db, ln,
+                                                  rf_classifier(args.config, db,
                                                                 ln))),
-                  ("adj-RF",  adjustment_classifier(args.config, ln,
-                                                    rf_classifier(args.config,
+                  ("adj-RF",  adjustment_classifier(args.config, db, ln,
+                                                    rf_classifier(args.config, db,
                                                     ln))),
                   ("rej-adj-RF",
-                   adjustment_classifier(args.config, ln,
-                                         reject_classifier(args.config, ln,
-                                                   rf_classifier(args.config,
+                   adjustment_classifier(args.config, db, ln,
+                                         reject_classifier(args.config, db, ln,
+                                                   rf_classifier(args.config, db,
                                                    ln)))),
-                  ("RF", rf_classifier(args.config, ln)),
-                  ("UBM", ubm(args.config, ln, fe,  n_pca=5, \
+                  ("RF", rf_classifier(args.config, db, ln)),
+                  ("UBM", ubm(args.config, db, ln, fe,  n_pca=5, \
                                      n_gaussians=2, r=8, normals_type='diag')),
                  ]
 
-        model = model_selector(args.config, ln, [x[1] for x in models])
+        model = model_selector(args.config, db, ln, [x[1] for x in models])
         model.train(tr)
         metrics = model.metrics(ts)
         print "Acc: %0.4f" % metrics[0]
         print "AUC: %0.4f" % metrics[1]
         print "c@1: %0.4f" % metrics[2]
         print "Ranking: %0.4f" % (metrics[1] * metrics[2])
-        print 
+        print

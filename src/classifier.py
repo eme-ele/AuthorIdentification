@@ -10,7 +10,6 @@ import matplotlib as mpl
 import random
 from scipy.stats import multivariate_normal
 
-from src.db_layer import *
 import utils
 import copy
 import math
@@ -25,10 +24,10 @@ import matplotlib as mpl
 
 
 class classifier:
-    def __init__(self, config, language):
+    def __init__(self, config, db, language):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db_layer(config)
+        self.db = db
         self.language = language
         self.feature_list = []
         self.fe = self.db.get_feature_extractor(language)
@@ -88,10 +87,10 @@ class classifier:
             prediction = self.predict(author)
             probabilities.append(prediction)
             targets.append(gt[author])
-            
+
             if (prediction >= 0.5) == (gt[author] >= 0.5):
                 acc_ret += 1.0
-            
+
             if prediction == 0.5:
                 nu += 1
             elif (prediction >= 0.5) == (gt[author] >= 0.5):
@@ -115,8 +114,8 @@ class classifier:
 
 
 class weighted_distance_classifier(classifier):
-    def __init__(self, config, language):
-        classifier.__init__(self, config, language)
+    def __init__(self, config, db, language):
+        classifier.__init__(self, config, db, language)
         self.weights = {}
         self.threshold = 0.0
 
@@ -254,10 +253,10 @@ class weighted_distance_classifier(classifier):
 
 
 class rf_classifier(classifier):
-    def __init__(self, config, language):
+    def __init__(self, config, db, language):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db_layer(config)
+        self.db = db
         self.language = language
         self.feature_list = []
         self.fe = self.db.get_feature_extractor(language)
@@ -348,11 +347,11 @@ class rf_classifier(classifier):
 
 class ubm(classifier):
 
-    def __init__(self, config, language, fe, n_pca = 5, n_gaussians=2, \
+    def __init__(self, config, db, language, fe, n_pca = 5, n_gaussians=2, \
                  r=16, normals_type='diag'):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db_layer(config)
+        self.db = db
         self.language = language
         self.feature_list = []
         self.fe = fe
@@ -362,7 +361,7 @@ class ubm(classifier):
         self.r = r
         self.tp = normals_type
         self.components=n_gaussians
-    
+
     def plot_test(self):
         # Number of samples per component
         n_samples = 70
@@ -416,7 +415,7 @@ class ubm(classifier):
 
         plt.show()
         exit(-1)
-           
+
 
     def mvnpdf(self, mean, covar, samples):
         multivariate_normal.pdf(samples, mean=mean, cov=covar)
@@ -425,7 +424,7 @@ class ubm(classifier):
 
     def alfa(self, n, r):
         return n/(n+r)
-        
+
     # x is a vector of samples
     def em(self, weights, means, covars,  samples, r, debug=False):
         # print '\nAdaptation'
@@ -436,44 +435,44 @@ class ubm(classifier):
                         for i in range(0,len(means))
                 ]
             ).T
-        
+
             if debug:
                 print '\nSamples: ', samples
                 print '\nPr: ', pr
-        
+
             if len(samples) == 1:
                 pr = np.array([pr])
-        
+
             if debug:
                 print '\nNormalizing Factor: ',map(sum, pr)
             pr = np.array([p/s for (p, s) in zip(pr,map(sum, pr))]).T
             ns = map(sum, pr)
-        
 
-        
+
+
             new_means = [sum([p*s for p,s in zip(ps,samples)])/ns[i] \
                                 for i, ps in enumerate(pr)]
 
             new_covars = [sum([p*(s**2) for p,s in zip(ps,samples)])/ns[i] \
                                 for i, ps in enumerate(pr)]
-        
-        
+
+
             alfas = [self.alfa(n, r) for n in ns]
             # Bayesian adaptation
             t = len(samples)
             adapted_weights = [a*n/t + (1-a)*w \
                             for a, n, w in zip(alfas, ns, weights)]
             adapted_weights = adapted_weights/sum(adapted_weights)
-                
+
             adapted_means = [a*nm + (1-a)*m \
                             for a, nm, m in zip(alfas, new_means, means)]
             adapted_means = np.array(adapted_means)
-                
+
             adapted_covars = [a*nc + ((1-a)*(c+m**2) - am**2) for a, nc, c, am, m \
                                 in zip(alfas, new_covars, covars, adapted_means, means)]
-        
+
             adapted_covars = np.array([ac + 0.1**7 for ac in adapted_covars])
-            
+
             if debug:
                 print '\nNs: ', ns
                 print '\nNormalized -Prs*Samples: ', pr, '*', samples, '/', ns
@@ -489,15 +488,15 @@ class ubm(classifier):
                 print '\ncovars'
                 print covars
                 print adapted_covars
-                
-            weights = adapted_weights      
-            means =adapted_means                 
+
+            weights = adapted_weights
+            means =adapted_means
             covars = adapted_covars
-        
+
         return adapted_weights, adapted_means, adapted_covars
-        
+
     def train(self, authors_id, debug=False):
-        
+
         if debug:
             self.plot_test()
 
@@ -523,8 +522,8 @@ class ubm(classifier):
         distances = []
 
         gt = self.db.get_ground_truth(self.language)
-        
-        n_classes = len(np.unique(gt.values()))    
+
+        n_classes = len(np.unique(gt.values()))
         self.bg_classifier = GMM(n_components=self.components, covariance_type=self.tp)
 
                            #'spherical', 'diag', 'tied', 'full'])
@@ -543,7 +542,7 @@ class ubm(classifier):
             ud = unknown_descriptor[0]
 
             target = gt[author]
-            
+
             agm = GMM(n_components=1,covariance_type=self.tp,init_params='')
             agm.weights_, agm.means_, agm.covars_ = \
                     self.em(ws, ms, cvs,  [descriptor], self.r)
@@ -594,7 +593,7 @@ class ubm(classifier):
         agm = GMM(n_components=self.components, covariance_type=self.tp)
         agm.weights_, agm.means_, agm.covars_ = \
                 self.em(ws, ms, cvs,  [descriptor], self.r)
-            
+
         if agm.score(ud)/self.bg_classifier.score(ud) < self.threshold:
 
             return 1.0
@@ -615,12 +614,12 @@ class ubm(classifier):
 
 
 class adjustment_classifier(classifier):
-    def __init__(self, config, language, classifier):
+    def __init__(self, config, db, language, classifier):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db_layer(config)
+        self.db = db
         self.language = language
-        
+
         self.prob_degree = 3
         self.rate = 0.8
 
@@ -657,22 +656,22 @@ class adjustment_classifier(classifier):
     def predict(self, author_id):
         prob = self.classifier.predict(author_id)
         expanded_prob = self.expand_prob(prob, self.prob_degree)
-        adjusted_prob = self.lr_probs.predict(expanded_prob)
+        adjusted_prob = self.lr_probs.predict(expanded_prob)[0]
         if (adjusted_prob >= 0.5) == (prob >= 0.5):
             return max(0.0, min(1.0, adjusted_prob))
         else:
             return prob
 
 class reject_classifier(classifier):
-    def __init__(self, config, language, classifier):
+    def __init__(self, config, db, language, classifier):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db_layer(config)
+        self.db = db
         self.language = language
 
         self.left_threshold = 0.5
         self.right_threshold = 0.5
-        
+
         self.classifier = classifier
         self.rate = 0.8
 
@@ -689,7 +688,7 @@ class reject_classifier(classifier):
             n = float(len(pt))
             nc = 0
             nu = 0
-            
+
             for p, t in pt:
                 if map_value(p) == 0.5:
                     nu += 1
@@ -697,7 +696,7 @@ class reject_classifier(classifier):
                     nc += 1.0
 
             return (nc + (nu * nc / n)) / n
-    
+
         authors = [self.db.get_author(a, True) for a in authors_id]
         gt = self.db.get_ground_truth(self.language)
 
@@ -713,6 +712,11 @@ class reject_classifier(classifier):
         # Fit a linear model to adjust the probabilities
         probs = [(self.classifier.predict(a), gt[a]) for a in ts] + \
                 [(0.5, 0.5)]
+
+        #print "len probs/test", len(probs), len(ts)
+        #for x in probs:
+        #    print "\tinner tuple", len(x)
+
         probs = list(set(probs))
         probs.sort()
 
@@ -722,6 +726,9 @@ class reject_classifier(classifier):
 
         for i in range(len(ts)):
             for j in range(i, len(ts)):
+                #print "i", i, "j", j
+                #print "probs[i]", probs[i]
+                #print "probs[j]", probs[j]
                 self.left_threshold = probs[i][0]
                 self.right_threshold = probs[j][0]
 
@@ -730,7 +737,7 @@ class reject_classifier(classifier):
                     break
 
                 next_c_at_1 = c_at_one_aux(probs)
-                
+
                 if next_c_at_1 > best_c_at_1:
                     best_left = self.left_threshold
                     best_right = self.right_threshold
@@ -738,7 +745,7 @@ class reject_classifier(classifier):
 
         self.left_threshold = best_left
         self.right_threshold = best_right
-        
+
         self.classifier.train(authors_id)
 
     def expand_prob(self, p, degree):
@@ -755,19 +762,21 @@ class reject_classifier(classifier):
 
 
 class model_selector(classifier):
-    def __init__(self, config, language, classifier_list):
+    def __init__(self, config, db, language, classifier_list):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db_layer(config)
+        self.db = db
         self.language = language
 
         self.classifier = classifier
         self.classifier_list = list(classifier_list)
         self.rate = 0.8
 
-    def train(self, authors_id):    
+    def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]
         gt = self.db.get_ground_truth(self.language)
+
+        #print gt
 
         pos = [a for a in authors_id if gt[a] == 1.0]
         neg = [a for a in authors_id if gt[a] == 0.0]
@@ -776,7 +785,7 @@ class model_selector(classifier):
              neg[: int(self.rate * len(neg))]
         ts = pos[int(self.rate * len(pos)):] + neg[int(self.rate * len(neg)):]
 
-        
+
         rankings = []
 
         for i, clf in enumerate(self.classifier_list):

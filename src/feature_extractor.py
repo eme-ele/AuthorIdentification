@@ -19,7 +19,6 @@ import json
 import os
 import re
 
-from db_layer import db_layer
 import utils
 import commands as cmd
 import numpy
@@ -27,10 +26,10 @@ import math
 
 
 class feature_extractor(object):
-    def __init__(self, config_file="conf/config.json"):
+    def __init__(self, config_file, db):
         self.config_file = config_file
         self.config = utils.get_configuration(config_file)
-        self.db = db_layer(config_file)
+        self.db = db
         self.paragraph_re = r'.+\n'
         self.language = None
         self.regex = None
@@ -79,21 +78,21 @@ class feature_extractor(object):
 
     def compute_features(author):
         return author
-        
+
     def get_stop_words(self, lang):
         folder = self.config["stop_words"]
         f = open(self.config["stop_words"] + '/' + lang + '.sw')
         ret = f.read().decode('utf-8').split('\n')
         f.close()
         return ret
-        
+
     def get_tokenizer(self):
         return RegexpTokenizer(self.regex)
 
 class concat_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json", children=[]):
+    def __init__(self, config_file, db, children=[]):
         self.children = list(children)
-        super(concat_fe, self).__init__(config_file)
+        super(concat_fe, self).__init__(config_file, db)
 
     def compute_features(self, author):
         for ch in self.children:
@@ -112,8 +111,8 @@ class clear_fe(feature_extractor):
 
 
 class num_tokens_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(num_tokens_fe, self).__init__(config_file)
+    def __init__(self, config_file, db):
+        super(num_tokens_fe, self).__init__(config_file, db)
         self.regex = r'\w+'
 
     def get_features(self, author, corpus, prefix):
@@ -191,9 +190,9 @@ class structure_fe(feature_extractor):
 
 
 class stop_words_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(stop_words_fe, self).__init__(config_file)
-        self.regex = r'\w+'    
+    def __init__(self, config_file, db):
+        super(stop_words_fe, self).__init__(config_file, db)
+        self.regex = r'\w+'
         self.stopwords = {ln: self.get_stop_words(ln) \
                             for ln in self.db.get_languages()}
 
@@ -436,8 +435,8 @@ class char_distribution_fe(feature_extractor):
 
 
 class word_distribution_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(word_distribution_fe, self).__init__(config_file)
+    def __init__(self, config_file, db):
+        super(word_distribution_fe, self).__init__(config_file, db)
         self.regex = r'\w+'
         self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
@@ -484,8 +483,8 @@ class word_distribution_fe(feature_extractor):
 
 
 class punctuation_ngrams_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(punctuation_ngrams_fe, self).__init__(config_file)
+    def __init__(self, config_file, db):
+        super(punctuation_ngrams_fe, self).__init__(config_file, db)
         self.token_pattern = u'[,;\.:?!¿¡]+'
         self.ngram_x = 2
         self.ngram_y = 2
@@ -520,9 +519,9 @@ class punctuation_ngrams_fe(feature_extractor):
 
 
 class hapax_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
+    def __init__(self, config_file, db):
 
-        super(hapax_fe, self).__init__(config_file)
+        super(hapax_fe, self).__init__(config_file, db)
         self.regex = r'\w+'
         self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
@@ -624,8 +623,8 @@ class hapax_fe(feature_extractor):
 
 class pos_fe(feature_extractor):
     #@ put k in config file
-    def __init__(self, config_file="conf/config.json", k=10):
-        super(pos_fe, self).__init__(config_file)
+    def __init__(self, config_file, db, k=10):
+        super(pos_fe, self).__init__(config_file, db)
         self.regex = r'\w+'
         self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
@@ -827,8 +826,8 @@ class pos_fe(feature_extractor):
 
 
 class stopword_distribution_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(stopword_distribution_fe, self).__init__(config_file)
+    def __init__(self, config_file, db):
+        super(stopword_distribution_fe, self).__init__(config_file, db)
         self.regex = r'\w+'
         self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
@@ -871,8 +870,8 @@ class stopword_distribution_fe(feature_extractor):
 
 
 class word_topics_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(word_topics_fe, self).__init__(config_file)
+    def __init__(self, config_file, db):
+        super(word_topics_fe, self).__init__(config_file, db)
         self.regex = r'[\w\']+'
         self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in self.db.get_languages()}
@@ -918,14 +917,14 @@ class word_topics_fe(feature_extractor):
 
 
 class stopword_topics_fe(feature_extractor):
-    def __init__(self, config_file="conf/config.json"):
-        super(stopword_topics_fe, self).__init__(config_file)
+    def __init__(self, config_file, db):
+        super(stopword_topics_fe, self).__init__(config_file, db)
         self.regex = r'\w+'
         self.k = 10
 
     def train(self, authors):
         lang = self.db.get_author_language(authors[0])
-        
+
         self.stopwords = {ln: self.get_stop_words(ln) \
                                 for ln in [lang]}
         # print lang
