@@ -2,9 +2,9 @@
 
 # Set these paths appropriately
 
-BIN=/Users/aldofpr/Desktop/PAN/AuthorIdentification/src/pos_tagger/bin
-CMD=/Users/aldofpr/Desktop/PAN/AuthorIdentification/src/pos_tagger/cmd
-LIB=/Users/aldofpr/Desktop/PAN/AuthorIdentification/src/pos_tagger/lib
+BIN=/home/pacheco15/AuthorIdentification/src/pos_tagger/bin
+CMD=/home/pacheco15/AuthorIdentification/src/pos_tagger/cmd
+LIB=/home/pacheco15/AuthorIdentification/src/pos_tagger/lib
 
 OPTIONS="-token -lemma -sgml -pt-with-lemma"
 

@@ -13,7 +13,7 @@ from src.feature_extractor import *
 from src.classifier import *
 
 parser = optparse.OptionParser()
-parser.add_option('-i', help='path to training corpus', dest='documents_path', type='string')
+parser.add_option('-i', help='path to testing corpus', dest='documents_path', type='string')
 parser.add_option('-m', help='path to classification model', dest='model_path', type='string')
 parser.add_option('-o', help='path to output directory', dest='out_path', type='string')
 (opts, args) = parser.parse_args()
@@ -25,8 +25,9 @@ for m in mandatories:
         parser.print_help()
         exit(-1)
 
-documents_path = opts.documents_path
-model_path = opts.model_path
+
+print "Performing test on input dataset", opts.documents_path
+
 out_path = os.path.join(opts.out_path, 'answers.txt')
 contents_path = os.path.join(opts.documents_path, 'contents.json')
 
@@ -38,21 +39,27 @@ authors = contents_dict["problems"]
 config_file = "conf/config_run.json"
 config = get_configuration(config_file)
 
-
-db = db_layer(language, authors, config_file, documents_path)
+db = db_layer(language, authors, config_file, opts.documents_path, False)
 
 print "Language:", language
 print "Number of examples in testing set:", len(authors)
 
 ln = db.get_language()
 
-print "Loading feature extractor..."
-try:
-    fe = db.get_feature_extractor(ln)
+## clean authors dir
+remove_dirs(os.path.join("features", ln, "Test"))
+
+print "Loading trained objects on", opts.model_path, "..."
+
+try:	
+    trained_object = db.get_model(opts.model_path)
 except Exception as e:
     print str(e)
-    print "Trained features could not be found."
+    print "Trained object could not be found."
     exit(-1)
+
+fe = trained_object['fe']
+fe.set_db(db)
 
 print "Computing features..."
 for id_author, author in enumerate(authors):
@@ -64,13 +71,8 @@ for id_author, author in enumerate(authors):
         os.sys.stdout.flush()
 print
 
-print "Loading model on", model_path, "..."
-try:
-    model = db.get_model(model_path)
-except Exception as e:
-    print str(e)
-    print "Trained model could not be found."
-    exit(-1)
+model = trained_object['model']
+model.set_db(db)
 
 if not os.path.exists(opts.out_path):
     os.makedirs(opts.out_path)

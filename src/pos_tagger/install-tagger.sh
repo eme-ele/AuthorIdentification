@@ -85,16 +85,16 @@ then
     echo 'French chunker parameter file (Linux, UTF8) installed.'
 fi
 
-if [ -r italian-par2-linux-3.1.bin.gz ]
-then
-    gzip -cd italian-par2-linux-3.1.bin.gz > lib/italian.par
-    echo 'Italian parameter file (Linux) installed.'
-fi
-
 if [ -r italian-par-linux-3.2-utf8.bin.gz ]
 then
     gzip -cd italian-par-linux-3.2-utf8.bin.gz > lib/italian-utf8.par
     echo 'Italian parameter file (Linux, UTF8) installed.'
+fi
+
+if [ -r italian-par2-linux-3.2-utf8.bin.gz ]
+then
+    gzip -cd italian-par2-linux-3.2-utf8.bin.gz > lib/italian.par
+    echo 'alternative Italian parameter file (Linux) installed.'
 fi
 
 if [ -r bulgarian-par-linux-3.2-utf8.bin.gz ]
@@ -107,6 +107,18 @@ if [ -r polish-par-linux-3.2-utf8.bin.gz ]
 then
     gzip -cd polish-par-linux-3.2-utf8.bin.gz > lib/polish-utf8.par
     echo 'Polish parameter file (Linux, UTF8) installed.'
+fi
+
+if [ -r portuguese-par-linux-3.2-utf8.bin.gz ]
+then
+    gzip -cd portuguese-par-linux-3.2-utf8.bin.gz > lib/portuguese-utf8.par
+    echo 'Portuguese parameter file (Linux, UTF8) installed.'
+fi
+
+if [ -r portuguese-finegrained-par-linux-3.2-utf8.bin.gz ]
+then
+    gzip -cd portuguese-finegrained-par-linux-3.2-utf8.bin.gz > lib/portuguese-finegrained-utf8.par
+    echo 'Portuguese parameter file (Linux, UTF8) with fine-grained tagset installed.'
 fi
 
 if [ -r russian-par-linux-3.2-utf8.bin.gz ]

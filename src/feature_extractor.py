@@ -26,13 +26,16 @@ import math
 
 
 class feature_extractor(object):
-    def __init__(self, config_file, db):
+    def __init__(self, config_file):
         self.config_file = config_file
         self.config = utils.get_configuration(config_file)
-        self.db = db
         self.paragraph_re = r'.+\n'
         self.language = None
         self.regex = None
+        self.db = None
+
+    def set_db(self, db):
+        self.db = db
 
     def get_paragraphs(self, documents):
         ret = [list(re.findall(self.paragraph_re, d + '\n')) \
@@ -90,9 +93,14 @@ class feature_extractor(object):
         return RegexpTokenizer(self.regex)
 
 class concat_fe(feature_extractor):
-    def __init__(self, config_file, db, children=[]):
+    def __init__(self, config_file, children=[]):
         self.children = list(children)
-        super(concat_fe, self).__init__(config_file, db)
+        super(concat_fe, self).__init__(config_file)
+
+    def set_db(self, db):
+        self.db = db
+        for ch in self.children:
+            ch.set_db(db)
 
     def compute_features(self, author):
         for ch in self.children:
@@ -111,8 +119,8 @@ class clear_fe(feature_extractor):
 
 
 class num_tokens_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(num_tokens_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(num_tokens_fe, self).__init__(config_file)
         self.regex = r'\w+'
 
     def get_features(self, author, corpus, prefix):
@@ -190,14 +198,13 @@ class structure_fe(feature_extractor):
 
 
 class stop_words_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(stop_words_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(stop_words_fe, self).__init__(config_file)
         self.regex = r'\w+'
-        self.stopwords = {ln: self.get_stop_words(ln) \
-                            for ln in self.db.get_languages()}
 
     def get_features(self, author, corpus, prefix):
-        tokenizer = self.get_tokenizer()
+        
+	tokenizer = self.get_tokenizer()
         corpus = [tokenizer.tokenize(d) for d in corpus]
         unique_tokens = [list(set(t)) for t in corpus]
 
@@ -235,7 +242,10 @@ class stop_words_fe(feature_extractor):
         return author
 
     def compute_features(self, author):
-        author = self.get_features(author, author["corpus"],
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                            for ln in self.db.get_languages()}
+        
+	author = self.get_features(author, author["corpus"],
                                    "document::")
         author = self.get_features(author,
                                    self.get_paragraphs(author["corpus"]),
@@ -435,14 +445,14 @@ class char_distribution_fe(feature_extractor):
 
 
 class word_distribution_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(word_distribution_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(word_distribution_fe, self).__init__(config_file)
         self.regex = r'\w+'
-        self.stopwords = {ln: self.get_stop_words(ln) \
-                                for ln in self.db.get_languages()}
 
     def train(self, authors):
-        lang = self.db.get_author_language(authors[0])
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+	lang = self.db.get_author_language(authors[0])
         self.words = [self.db.get_author(a)["corpus"] for a in authors]
         self.words = utils.flatten(self.words)
         tokenizer = self.get_tokenizer()
@@ -483,8 +493,8 @@ class word_distribution_fe(feature_extractor):
 
 
 class punctuation_ngrams_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(punctuation_ngrams_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(punctuation_ngrams_fe, self).__init__(config_file)
         self.token_pattern = u'[,;\.:?!¿¡]+'
         self.ngram_x = 2
         self.ngram_y = 2
@@ -519,15 +529,16 @@ class punctuation_ngrams_fe(feature_extractor):
 
 
 class hapax_fe(feature_extractor):
-    def __init__(self, config_file, db):
+    def __init__(self, config_file):
 
-        super(hapax_fe, self).__init__(config_file, db)
+        super(hapax_fe, self).__init__(config_file)
         self.regex = r'\w+'
-        self.stopwords = {ln: self.get_stop_words(ln) \
-                                for ln in self.db.get_languages()}
 
     def train(self, authors):
-        def get_author_titles(author_corpus):
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+        
+	def get_author_titles(author_corpus):
             author_titles = {}
             for i in author_corpus:
                 author_titles[i.split('\n', 1)[0].strip().lower()] = i
@@ -579,8 +590,10 @@ class hapax_fe(feature_extractor):
             else:
                 words = self.titles[title]
 
-            return len(self.author_hapax[_id].intersection(words)),\
-                             len(words.difference(self.words))
+            #return len(self.author_hapax[_id].intersection(words)),\
+            #                 len(words.difference(self.words))
+            return len(words.intersection(self.words)),\
+                   len(words.difference(self.words))
 
         # Bag-of-Words
         author_titles = get_author_titles(author["corpus"])
@@ -623,17 +636,18 @@ class hapax_fe(feature_extractor):
 
 class pos_fe(feature_extractor):
     #@ put k in config file
-    def __init__(self, config_file, db, k=10):
-        super(pos_fe, self).__init__(config_file, db)
+    def __init__(self, config_file, k=10):
+        super(pos_fe, self).__init__(config_file)
         self.regex = r'\w+'
-        self.stopwords = {ln: self.get_stop_words(ln) \
-                                for ln in self.db.get_languages()}
         self.lang_pos_defs = {}
         self.k_max = k
 
     def train(self, authors):
 
-        lang = self.db.get_author_language(authors[0])
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
+        
+	lang = self.db.get_author_language(authors[0])
         if lang == 'GR':
             return
 
@@ -826,13 +840,13 @@ class pos_fe(feature_extractor):
 
 
 class stopword_distribution_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(stopword_distribution_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(stopword_distribution_fe, self).__init__(config_file)
         self.regex = r'\w+'
-        self.stopwords = {ln: self.get_stop_words(ln) \
-                                for ln in self.db.get_languages()}
 
     def train(self, authors):
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
         lang = self.db.get_author_language(authors[0])
         self.words = [self.db.get_author(a)["corpus"] for a in authors]
         self.words = utils.flatten(self.words)
@@ -870,14 +884,14 @@ class stopword_distribution_fe(feature_extractor):
 
 
 class word_topics_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(word_topics_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(word_topics_fe, self).__init__(config_file)
         self.regex = r'[\w\']+'
-        self.stopwords = {ln: self.get_stop_words(ln) \
-                                for ln in self.db.get_languages()}
         self.k = 10
 
     def train(self, authors):
+        self.stopwords = {ln: self.get_stop_words(ln) \
+                                for ln in self.db.get_languages()}
         lang = self.db.get_author_language(authors[0])
         # transform corpus into a list of preprocessed documents
         documents = [self.db.get_author(a)["corpus"] for a in authors]
@@ -917,8 +931,8 @@ class word_topics_fe(feature_extractor):
 
 
 class stopword_topics_fe(feature_extractor):
-    def __init__(self, config_file, db):
-        super(stopword_topics_fe, self).__init__(config_file, db)
+    def __init__(self, config_file):
+        super(stopword_topics_fe, self).__init__(config_file)
         self.regex = r'\w+'
         self.k = 10
 

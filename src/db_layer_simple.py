@@ -13,13 +13,14 @@ import utils
 
 class db_layer():
 
-    def __init__(self, language, problems, config_filename, documents_path):
+    def __init__(self, language, problems, config_filename, documents_path, train=True):
         self.language = language
         self.problems = problems
         self.config_filename = config_filename
         self.config = utils.get_configuration(config_filename)
         self.descriptor_path = self.config["dataset"]
         self.documents_path = documents_path
+        self.train = train
 
     def get_authors(self):
         return self.problems
@@ -28,7 +29,11 @@ class db_layer():
         return os.path.join(self.documents_path, id_)
 
     def get_author_descriptor_path(self, id_):
-        return os.path.join(self.descriptor_path, self.get_author_language(id_))
+        if self.train:
+           sub_path = "Train"
+        else:
+           sub_path = "Test"
+        return os.path.join(self.descriptor_path, self.get_author_language(id_), sub_path)
 
     def get_author_descriptor_file(self, id_):
         filename = "author_" + str(id_) + ".json"
@@ -88,7 +93,7 @@ class db_layer():
              "documents": self.get_author_documents(id_),
              "corpus": [],
              "features": {},
-             "documents_path": self.get_author_path(id_),
+             "path": self.get_author_path(id_),
              "descriptor_path": self.get_author_descriptor_path(id_)
             }
 
@@ -200,18 +205,22 @@ class db_layer():
 
         return ret
 
-    def store_model(self, model_path, model):
-        filename = "model_" + str(self.language) + ".pickle"
+    def store_model(self, model_path, model, fe):
+	trained_object = {'model': model, 'fe': fe}
+        
+	filename = "model_" + str(self.language) + ".pickle"
         model_path = os.path.join(model_path, filename)
         if not os.path.exists(os.path.dirname(model_path)):
             os.makedirs(os.path.dirname(model_path))
 
         f = open(model_path, 'wb')
-        pickle.dump(model, f, protocol=2)
+        pickle.dump(trained_object, f, protocol=2)
         f.close()
 
     def get_model(self, model_path):
-        f = open(model_path, 'rb')
+        filename = "model_" + str(self.language) + ".pickle"
+	model_path = os.path.join(model_path, filename)
+	f = open(model_path, 'rb')
         ret = pickle.load(f)
         f.close()
 

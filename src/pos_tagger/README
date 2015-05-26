@@ -51,27 +51,32 @@ Description of the command line arguments:
 
 Further optional command line arguments:
 
-* -token: tells the tagger to print the words also.
-* -lemma: tells the tagger to print the lemmas of the words also.
-* -sgml: tells the tagger to ignore tokens starting with '<' and ending
-  with '>' (SGML tags).
-- -no-unknown: If an unknown word is encountered, emit the word form
+* -token: The words/tokens are printed in addition to the POS tags
+* -lemma: Lemmas are printed as well.
+* -sgml: This option instructs the tagger to ignore tokens which start
+  with '<' and end with '>' (SGML tags).
+* -lex <f>: The file <f> contains additional lexicon entries to be used
+  by the tagger. The file format is identical to the format of the lexicon
+  argument of the training program (see below).
+* -no-unknown: If an unknown word is encountered, emit the word form
   as lemma. This was previously the default behaviour. Now, the default 
   behaviour is to print "<unknown>" as lemma.
-- -threshold <p>: This option tells the tagger to print all tags of a
+* -threshold <p>: This option tells the tagger to print all tags of a
   word with a probability higher than <p> times the largest probability.
   (The tagger will use a different algorithm in this case and the set of
   best tags might be different from the tags generated without this
   option.)
-- -prob: Print tag probabilities (in combination with option -threshold)
-- -pt-with-prob: If this option is specified, then each pretagging tag
+* -prob: Print tag probabilities (in combination with option -threshold)
+* -pt-with-prob: If this option is specified, then each pretagging tag
   (see above) has to be followed by a whitespace and a tag probability 
   value.
-- -pt-with-lemma: If this option is specified, then each pretagging tag
+* -pt-with-lemma: If this option is specified, then each pretagging tag
   (see above) has to be followed by a whitespace and a lemma. Lemmas may 
   contain blanks.
   If both -pt-with-prob and -pt-with-lemma have been specified, then each
   pretagging tag is followed by a probability and a lemma in that order.
+* -hyphen-heuristics: needed for chunking. See below for more information
+  about how to train a chunk parameter file with hyphen-heuristics.
 
 The options below are for advanced users. Please, read the papers on the 
 TreeTagger to fully understand their meaning.
@@ -124,10 +129,24 @@ abandoning	VBG abandon
   program reports an error because the POS tag used for numbers is
   unknown, you should add a lexicon entry for one number.
 
-  Remark: The tagger doesn't need the lemmata for tagging actually. If
+  Remark: The tagger doesn't need the lemmas for tagging actually. If
   you do not have the lemma information or if you do not plan to
   annotate corpora with lemmas, you can replace the lemma with a dummy
   value, e.g. "-".
+
+  You can use the Perl script make-lex.perl as follows in order to
+  create a tagger lexicon from the training corpus:
+    cmd/make-lex.perl corpus > lexicon
+
+  If you have additional lexicon entries stored in a separate file "lex"
+  with entries like this (The POS tag is preceded by a tab character.)
+    aback   RB aback
+    aback   RP aback
+    abacs   NNS abac
+  you can include them as follows:  cmd/make-lex.perl corpus lex > lexicon
+
+  If train-tree-tagger complains about unknown tags, just add another
+  entry to the lexicon with the respective POS tag.
 
 * <open class file>: name of a file which contains a list of open class tags
   i.e. possible tags of unknown word forms separated by whitespace.
@@ -158,8 +177,10 @@ fully understand their meaning.
 
 * -st <sent. tag>: the end-of-sentence part-of-speech tag, i.e. the tag which
   is assigned to sentence punctuation like ".", "!", "?". 
-  Default is "SENT". It is important to set this option properly, if your
-  tag for sentence punctuation is not "SENT".
+  Default is "SENT". You have to use this option, if your tag for sentence
+  punctuation is not "SENT". If you have more than one such tag, choose the
+  most frequent one.
+* -utf8 assume that the data is encoded with UTF8
 * -cl <context length>: number of preceding words forming the statistical
   context. The default is 2 which corresponds to a trigram context. For
   small training corpora and/or large tagsets, it could be useful to reduce
@@ -182,3 +203,88 @@ Caveat: Make sure that the lexicon and the training corpus contain no
 extra blanks. If the word form, for instance, is followed by a blank
 and a tab character, the blank will be considered part of the word.
 
+The script 'cmd/create-pos-parameter-file' can be used to train a 
+parameter file, provided the file: 'lib/open-class-tags' exists.
+The script creates a lexicon and a parameter file
+that both will be stored in the lib-directory.
+
+
+Training a parameter file for chunking
+---------------------------------------
+
+(This section of the README file was created by Wiebke Wagner.)
+
+Training is done with the *train-tree-tagger* program just like the training
+of part-of-speech parameter files. The input files differ (see below).
+
+train-tree-tagger {options} <lexicon> <open class file> <input file> <output file>
+
+Description of the command line arguments:
+
+* <lexicon>: name of a file which contains the fullform lexicon. Each line 
+  of the lexicon corresponds to one word form and contains the word form 
+  with its pos-tag and a sequence of chunktag-lemma pairs. Since there is
+  no lemma for a string containing a word and its pos, lemma is just a 
+  dummy-placeholder. Each chunktag 
+  is preceded by a tab character and each dummy-lemma is preceded by a blank or tab character.
+  Example:
+
+Abs-NP  NP/I-NC #       NP/B-NC #
+Academic-NP     NP/I-NC #
+Activated-VVN   VBN/B-VC #      VBN/B-NC #
+Activation-NN   NN/I-NC #       NN/B-NC #
+VB      VB/I-VC #
+
+  The lexicon must contain specific entries that contain a hypen 
+  ('WORD-POS	POS/IOB DUMMY-LEMMA') and general entries without a hypen 
+  ('POS	   POS/IOB DUMMY-LEMMMA)'. The hypen-heuristics enables the 
+  program to select the general entry if no specific entry is available.
+
+  You can use the Perl script make-chunk-lex.perl as follows in order to
+  create a tagger-chunker lexicon from the training corpus:
+  'cmd/make-chunk-lex.perl' corpus > chunker-lexicon
+
+  Attention: if 'train-tree-tagger' shows the error message:
+  'ERROR: Sentence punctuation tag "SENT" is not in lexicon!' 
+  add the option: [-st 'SENT/O'] to the system call.
+ 
+  If train-tree-tagger complains about unknown tags, just add another
+  entry to the lexicon with the respective POS tag.
+
+* <open class file>: name of a file which contains only the dummy entry:
+  NN/B-NC. If there are general entries in the lexicon for every 
+  word class, and if the hyphen heuristic is activated  no tags 
+  have to be guessed.
+
+* <input file>: name of a file which contains training data annotated
+  with part-of-speech tags  and chunk tags. The data
+  must be in one-word-per-line format. This means that each line contains 
+  one token with its mark-up: 
+  WORD-POS	POS/IOB DUMMY-LEMMA
+  The file should neither contain empty lines nor untagged SGML markup.
+  Example:
+
+Activation-NN   NN/I-NC
+of-IN   IN/B-PC
+the-DT  DT/B-NC
+CD28-NP NP/I-NC
+surface-NN      NN/I-NC
+
+* <output file>: name of the file in which the resulting tagger parameters 
+  are stored.
+
+The optional parameters like for training a part-of-speech parameter file
+
+The accuracy of the TreeTagger usually improves, if different settings
+of the above parameters are tested and the best combination is chosen.
+
+Caveat: Make sure that the lexicon and the training corpus contain no
+extra blanks. If the word form, for instance, is followed by a blank
+and a tab character, the blank will be considered part of the word.
+
+The script 'cmd/create-chunk-parameter-file' can be used to train a chunk
+parameter file, provided the file: 'lib/open-class-chunks' exists and 
+contains the dummy entry: 
+NN/B-NC  
+The script creates a lexicon and a parameter file
+that both will be stored in the lib-directory.

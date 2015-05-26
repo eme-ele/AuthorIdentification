@@ -24,13 +24,15 @@ import matplotlib as mpl
 
 
 class classifier:
-    def __init__(self, config, db, language):
+    def __init__(self, config, language):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db
         self.language = language
         self.feature_list = []
-        self.fe = self.db.get_feature_extractor(language)
+	self.db = None
+
+    def set_db(self, db):
+        self.db = db
 
     def train(self, authors):
         pass
@@ -114,8 +116,8 @@ class classifier:
 
 
 class weighted_distance_classifier(classifier):
-    def __init__(self, config, db, language):
-        classifier.__init__(self, config, db, language)
+    def __init__(self, config, language):
+        classifier.__init__(self, config, language)
         self.weights = {}
         self.threshold = 0.0
 
@@ -253,17 +255,16 @@ class weighted_distance_classifier(classifier):
 
 
 class rf_classifier(classifier):
-    def __init__(self, config, db, language):
+    def __init__(self, config, language):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db
         self.language = language
         self.feature_list = []
-        self.fe = self.db.get_feature_extractor(language)
         self.rf_criterion = self.config["rf"][self.language]["criterion"]
         self.rf_num_estimators = self.config["rf"][self.language]["estimators"]
         self.prob_degree = 5
         self.use_adjustment = True
+	self.db = None
 
     def get_composed_descriptor(self, known_descriptor, unknown_descriptor):
         return [((x - d) ** 2 + 1) / ((x - m) ** 2 + 1) \
@@ -347,20 +348,19 @@ class rf_classifier(classifier):
 
 class ubm(classifier):
 
-    def __init__(self, config, db, language, fe, n_pca = 5, n_gaussians=2, \
+    def __init__(self, config, language, fe, n_pca = 5, n_gaussians=2, \
                  r=16, normals_type='diag'):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db
         self.language = language
         self.feature_list = []
-        self.fe = fe
         self.weights = {}
         self.threshold = 0.0
         self.n_pca = n_pca
         self.r = r
         self.tp = normals_type
         self.components=n_gaussians
+	self.db = None
 
     def plot_test(self):
         # Number of samples per component
@@ -614,16 +614,20 @@ class ubm(classifier):
 
 
 class adjustment_classifier(classifier):
-    def __init__(self, config, db, language, classifier):
+    def __init__(self, config, language, classifier):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db
         self.language = language
 
         self.prob_degree = 3
         self.rate = 0.8
 
         self.classifier = classifier
+	self.db = None
+
+    def set_db(self, db):
+        self.db = db
+        self.classifier.set_db(db)
 
     def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]
@@ -663,10 +667,10 @@ class adjustment_classifier(classifier):
             return prob
 
 class reject_classifier(classifier):
-    def __init__(self, config, db, language, classifier):
+    def __init__(self, config, language, classifier):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db
+        self.db = None
         self.language = language
 
         self.left_threshold = 0.5
@@ -674,6 +678,10 @@ class reject_classifier(classifier):
 
         self.classifier = classifier
         self.rate = 0.8
+
+    def set_db(self, db):
+        self.db = db
+        self.classifier.set_db(db)
 
     def train(self, authors_id):
         def map_value(x):
@@ -762,15 +770,20 @@ class reject_classifier(classifier):
 
 
 class model_selector(classifier):
-    def __init__(self, config, db, language, classifier_list):
+    def __init__(self, config, language, classifier_list):
         self.config_file = config
         self.config = utils.get_configuration(config)
-        self.db = db
         self.language = language
 
         self.classifier = classifier
         self.classifier_list = list(classifier_list)
         self.rate = 0.8
+        self.db = None
+
+    def set_db(self, db):
+        self.db = db
+        for classifier_i in self.classifier_list:
+            classifier_i.set_db(db)
 
     def train(self, authors_id):
         authors = [self.db.get_author(a, True) for a in authors_id]

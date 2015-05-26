@@ -103,3 +103,10 @@ def get_feature_auc(feature, authors, plot=True, config=None, language=""):
         save_image_or_show(path, feature + ".png")
 
     return area
+
+def remove_dirs(top):
+    for root, dirs, files in os.walk(top, topdown=False):
+        for name in files:
+            os.remove(os.path.join(root, name))
+        for name in dirs:
+            os.rmdir(os.path.join(root, name))
