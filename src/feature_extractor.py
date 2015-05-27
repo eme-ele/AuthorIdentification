@@ -659,9 +659,8 @@ class pos_fe(feature_extractor):
                     self.config['languages'][lang] + ' '
         a_titles = ['cat ' + a + '|' + tagger for a in a_titles]
         self.lemmas = cmd.getoutput(';'.join(a_titles)).split('\n')
-        #print self.lemmas
-        self.lemmas = set([i.split('\t')[2] for i in self.lemmas \
-                        if i[0] != '\t'])
+        self.lemmas = [i.split('\t') for i in self.lemmas if i[0] != '\t']
+	self.lemmas = set([i[2] for i in self.lemmas if len(i) == 3])
         # unwanted = set(['<unknown>','@card@'])
         # [self.lemmas.discard(u) for u in unwanted]
         self.lemmas = list(self.lemmas)
@@ -725,12 +724,21 @@ class pos_fe(feature_extractor):
                 n = sum(doc.values())
                 ld_x_doc.append(nlex / float(n))
 
+            if len(ld_x_doc) == 0:
+                max_ld = 0.0
+                min_ld = 0.0
+                mean_ld = 0.0
+            else:
+                max_ld = max(ld_x_doc)
+                min_ld = min(ld_x_doc)
+                mean_ld = numpy.mean(ld_x_doc)
+
             author = self.db.set_feature(author,
-                        "style::lexical_density_max", max(ld_x_doc))
+                        "style::lexical_density_max", max_ld)
             author = self.db.set_feature(author,
-                        "style::lexical_density_min", min(ld_x_doc))
+                        "style::lexical_density_min", min_ld)
             author = self.db.set_feature(author,
-                        "style::lexical_density_avg", numpy.mean(ld_x_doc))
+                        "style::lexical_density_avg", mean_ld)
 
         def word_diversity(author, tagger_output):
             # WORD DIVERSITY (WD)
@@ -744,13 +752,20 @@ class pos_fe(feature_extractor):
             # n: total tokens sum(doc.values())
             wd_x_doc = [len(doc.keys()) / float(sum(doc.values())) \
                         for doc in lemma_x_doc]
-
+            if len(wd_x_doc) > 0:
+                max_wd = max(wd_x_doc)
+                min_wd = min(wd_x_doc)
+                mean_wd = numpy.mean(wd_x_doc)
+            else:
+                max_wd = 0.0
+                min_wd = 0.0
+                mean_wd = 0.0
             author = self.db.set_feature(author,
-                        "style::word_diversity_max", max(wd_x_doc))
+                        "style::word_diversity_max", max_wd)
             author = self.db.set_feature(author,
-                        "style::word_diversity_min", min(wd_x_doc))
+                        "style::word_diversity_min", min_wd)
             author = self.db.set_feature(author,
-                        "style::word_diversity_avg", numpy.mean(wd_x_doc))
+                        "style::word_diversity_avg", mean_wd)
 
             return lemma_x_doc
 
@@ -761,15 +776,22 @@ class pos_fe(feature_extractor):
                 doc_len = float(sum(doc.values()))
                 author_lemmas.append([doc[i] / doc_len for i in self.lemmas])
 
-            # print len(author_lemmas)
-            author_lemmas = np.divide(np.sum(author_lemmas, axis=0),
-                                     len(author_lemmas))
-            # print author_lemmas
-            for id_w, (word, value) in enumerate(zip(self.lemmas,
-                                                     author_lemmas)):
-                author = self.db.set_feature(author,
-                                             "BoW::lemmas_avg::" + word,
-                                             value)
+            #print len(author_lemmas), len(self.lemmas)
+            if len(author_lemmas) > 0:
+                author_lemmas = np.divide(np.sum(author_lemmas, axis=0),
+                                          len(author_lemmas))
+                #print author_lemmas
+                for id_w, (word, value) in enumerate(zip(self.lemmas,
+						     author_lemmas)):
+		    author = self.db.set_feature(author,
+						 "BoW::lemmas_avg::" + word,
+						 value)
+            else:
+                for word in self.lemmas:
+                    author = self.db.set_feature(author,
+                                                 "BoW::lemmas_avg:" + word,
+                                                 0.0)
+                    
 
         def lemma_diversity(author, tagger_output, lemma_x_doc):
             # BOG - MAX K DIVERSE WORDS
@@ -798,23 +820,36 @@ class pos_fe(feature_extractor):
             norm = math.log(numpy.mean([len(i) for i in lemma_x_doc]) + 1) + 1
 
             # Bag-of-Words Lemma Diversity Avg
-            lemma_x_words_doc_avg = np.divide(np.sum(lemma_x_words_doc,
+            if len(lemma_x_words_doc) > 0:
+                lemma_x_words_doc_avg = np.divide(np.sum(lemma_x_words_doc,
                                                      axis=0),
-                                     len(lemma_x_words_doc))
-            lemma_x_words_doc_avg = [i / norm for i in lemma_x_words_doc_avg]
-            for id_w, (word, value) in enumerate(zip(self.lemmas,
-                                                     lemma_x_words_doc_avg)):
-                author = self.db.set_feature(author,
-                                 "BoW::word_diversity_per_lema_avg::" + word,
-                                 value)
+                                         len(lemma_x_words_doc))
+                lemma_x_words_doc_avg = [i / norm for i in lemma_x_words_doc_avg]
+                for id_w, (word, value) in enumerate(zip(self.lemmas,
+                                                         lemma_x_words_doc_avg)):
+                    author = self.db.set_feature(author,
+                                     "BoW::word_diversity_per_lema_avg::" + word,
+                                      value)
+            else:
+                for word in self.lemmas:
+                    author = self.db.set_feature(author, 
+                                                 "BoW::word_diversity_per_lema_avg::" + word,
+                                                 0.0)
+  
             # Bag-of-Words Lemma Diversity Max
-            lemma_x_words_doc_max = np.max(lemma_x_words_doc, axis=0)
-            lemma_x_words_doc_max = [i / norm for i in lemma_x_words_doc_max]
-            for id_w, (word, value) in enumerate(zip(self.lemmas,
+            if len(lemma_x_words_doc) > 0:
+                lemma_x_words_doc_max = np.max(lemma_x_words_doc, axis=0)
+                lemma_x_words_doc_max = [i / norm for i in lemma_x_words_doc_max]
+                for id_w, (word, value) in enumerate(zip(self.lemmas,
                                                      lemma_x_words_doc_max)):
-                author = self.db.set_feature(author,
-                                 "BoW::word_diversity_per_lema_max::" + word,
-                                 value)
+                    author = self.db.set_feature(author,
+                                     "BoW::word_diversity_per_lema_max::" + word,
+                                      value)
+            else:
+                for word in self.lemmas:
+                    author = self.db.set_feature(author,
+                                     "BoW::word_diversity_per_lema_max::" + word,
+                                      0.0)
 
         # Tag author documents
         lang = self.db.get_author_language(author['id'])
@@ -830,6 +865,7 @@ class pos_fe(feature_extractor):
         # pxd[3:] because the first 3 lines of the output are flags
         tagger_output = [to.lower().split('\n') for to in tagger_output]
         tagger_output = [[p.split('\t') for p in to] for to in tagger_output]
+	tagger_output = [[p for p in to if len(p) == 3] for to in tagger_output]
 
         lexical_density(lang, author, tagger_output)
         lemma_x_doc = word_diversity(author, tagger_output)
